@@ -19,7 +19,7 @@ func NewVec4(x, y, z, w float64) Vec4 {
 // Vec4Zero returns the zero vector.
 func Vec4Zero() Vec4 { return Vec4{} }
 
-// Vec3FromVec4 returns the XYZ components as a Vec3.
+// Vec3 returns the XYZ components as a Vec3.
 func (v Vec4) Vec3() Vec3 {
 	return Vec3{X: v.X, Y: v.Y, Z: v.Z}
 }

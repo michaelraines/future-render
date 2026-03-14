@@ -10,20 +10,20 @@ const (
 	Epsilon = 1e-10
 )
 
-// clamp restricts v to the range [min, max].
-func clamp(v, min, max float64) float64 {
-	if v < min {
-		return min
+// clamp restricts v to the range [lo, hi].
+func clamp(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
 	}
-	if v > max {
-		return max
+	if v > hi {
+		return hi
 	}
 	return v
 }
 
-// Clamp restricts v to the range [min, max].
-func Clamp(v, min, max float64) float64 {
-	return clamp(v, min, max)
+// Clamp restricts v to the range [lo, hi].
+func Clamp(v, lo, hi float64) float64 {
+	return clamp(v, lo, hi)
 }
 
 // Lerp returns the linear interpolation between a and b by t.

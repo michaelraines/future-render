@@ -1,0 +1,93 @@
+version: "2"
+
+run:
+  timeout: 3m
+  modules-download-mode: readonly
+
+linters:
+  default: standard
+  enable:
+    # Additional quality linters
+    - bodyclose       # Check HTTP response body is closed
+    - copyloopvar     # Detect loop variable capture issues
+    - durationcheck   # Check for dubious duration multiplications
+    - errname         # Check error type naming (ErrFoo)
+    - errorlint       # Check error wrapping with %w
+    - exhaustive      # Check switch exhaustiveness on enums
+    - gocritic        # Opinionated Go linter
+    - misspell        # Detect misspelled English words
+    - nilerr          # Check for err != nil but returning nil
+    - prealloc        # Suggest preallocating slices
+    - revive          # Configurable replacement for golint
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Find unused function parameters
+    - wastedassign    # Find wasted assignments
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam    # We pass math types (Mat4 = 128 bytes) by value intentionally
+        - rangeValCopy # Same reason — small value types are fine
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: unexported-return
+        - name: var-naming
+
+    misspell:
+      locale: US
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/michaelraines/future-render
+
+issues:
+  exclude-rules:
+    # Test files can use dot imports for convenience
+    - path: _test\.go
+      linters:
+        - revive
+      text: "dot-imports"
+
+    # Test files don't need exported function docs
+    - path: _test\.go
+      linters:
+        - revive
+      text: "exported"
+
+    # Allow unused params in test helpers
+    - path: _test\.go
+      linters:
+        - unparam
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -163,9 +163,9 @@ func (q Quat) ToMat4() Mat4 {
 
 // ToAxisAngle converts the quaternion to axis-angle representation.
 // Returns the axis and angle in radians.
-func (q Quat) ToAxisAngle() (Vec3, float64) {
+func (q Quat) ToAxisAngle() (axis Vec3, angle float64) {
 	q = q.Normalize()
-	angle := 2.0 * gomath.Acos(clamp(q.W, -1, 1))
+	angle = 2.0 * gomath.Acos(clamp(q.W, -1, 1))
 	sin := gomath.Sqrt(1 - q.W*q.W)
 	if sin < 1e-10 {
 		return Vec3{X: 1}, angle

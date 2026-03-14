@@ -124,12 +124,12 @@ func (v Vec3) Reflect(normal Vec3) Vec3 {
 	return Vec3{X: v.X - d*normal.X, Y: v.Y - d*normal.Y, Z: v.Z - d*normal.Z}
 }
 
-// Clamp returns v with each component clamped to [min, max].
-func (v Vec3) Clamp(min, max Vec3) Vec3 {
+// Clamp returns v with each component clamped to [lo, hi].
+func (v Vec3) Clamp(lo, hi Vec3) Vec3 {
 	return Vec3{
-		X: clamp(v.X, min.X, max.X),
-		Y: clamp(v.Y, min.Y, max.Y),
-		Z: clamp(v.Z, min.Z, max.Z),
+		X: clamp(v.X, lo.X, hi.X),
+		Y: clamp(v.Y, lo.Y, hi.Y),
+		Z: clamp(v.Z, lo.Z, hi.Z),
 	}
 }
 

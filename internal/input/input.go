@@ -13,10 +13,10 @@ type State struct {
 	prevKeys [platform.KeyCount]bool
 
 	// Mouse
-	mouseButtons     [5]bool
-	prevMouseButtons [5]bool
-	mouseX, mouseY   float64
-	mouseDX, mouseDY float64
+	mouseButtons       [5]bool
+	prevMouseButtons   [5]bool
+	mouseX, mouseY     float64
+	mouseDX, mouseDY   float64
 	scrollDX, scrollDY float64
 
 	// Touch
@@ -82,6 +82,8 @@ func (s *State) OnMouseButtonEvent(event platform.MouseButtonEvent) {
 		s.mouseButtons[event.Button] = true
 	case platform.ActionRelease:
 		s.mouseButtons[event.Button] = false
+	case platform.ActionRepeat:
+		// Mouse buttons don't typically repeat; no-op.
 	}
 	s.mouseX = event.X
 	s.mouseY = event.Y
@@ -164,17 +166,17 @@ func (s *State) IsMouseButtonJustPressed(button platform.MouseButton) bool {
 }
 
 // MousePosition returns the current mouse position.
-func (s *State) MousePosition() (float64, float64) {
+func (s *State) MousePosition() (x, y float64) {
 	return s.mouseX, s.mouseY
 }
 
 // MouseDelta returns the mouse movement delta since last frame.
-func (s *State) MouseDelta() (float64, float64) {
+func (s *State) MouseDelta() (dx, dy float64) {
 	return s.mouseDX, s.mouseDY
 }
 
 // ScrollDelta returns the scroll wheel delta since last frame.
-func (s *State) ScrollDelta() (float64, float64) {
+func (s *State) ScrollDelta() (dx, dy float64) {
 	return s.scrollDX, s.scrollDY
 }
 
@@ -188,7 +190,7 @@ func (s *State) TouchIDs() []int {
 }
 
 // TouchPosition returns the position of a touch point.
-func (s *State) TouchPosition(id int) (float64, float64, bool) {
+func (s *State) TouchPosition(id int) (x, y float64, ok bool) {
 	t, ok := s.touches[id]
 	if !ok {
 		return 0, 0, false

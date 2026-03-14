@@ -22,7 +22,6 @@ package futurerender
 import (
 	"errors"
 	"sync/atomic"
-	"time"
 )
 
 // Game is the interface that game implementations must satisfy.
@@ -41,8 +40,8 @@ type Game interface {
 	Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int)
 }
 
-// Termination is returned from Update() to cleanly exit the game loop.
-var Termination = errors.New("game terminated")
+// ErrTermination is returned from Update() to cleanly exit the game loop.
+var ErrTermination = errors.New("game terminated")
 
 // RunGame starts the game loop with the given Game implementation.
 // This function blocks until the game exits. It must be called from
@@ -136,6 +135,7 @@ func SetCursorMode(mode CursorMode) {
 // CursorMode constants.
 type CursorMode int
 
+// CursorMode constants.
 const (
 	CursorModeVisible  CursorMode = iota // Normal cursor
 	CursorModeHidden                     // Hidden cursor
@@ -162,18 +162,9 @@ func init() {
 }
 
 type engine struct {
-	game Game
-
-	// Timing
-	lastUpdateTime time.Time
-	lastDrawTime   time.Time
-	updateCount    int64
-	drawCount      int64
-	fpsAccum       float64
-	tpsAccum       float64
-	fpsValue       float64
-	tpsValue       float64
-	fpsTimer       time.Time
+	game     Game
+	fpsValue float64
+	tpsValue float64
 }
 
 func newEngine(game Game) *engine {
@@ -199,13 +190,13 @@ func (e *engine) run() error {
 	return errors.New("engine: no platform backend available (build with platform tags)")
 }
 
-func (e *engine) setWindowSize(width, height int)  {}
-func (e *engine) setWindowTitle(title string)       {}
-func (e *engine) setFullscreen(fullscreen bool)     {}
-func (e *engine) isFullscreen() bool                { return false }
-func (e *engine) setVSync(enabled bool)             {}
-func (e *engine) isVSync() bool                     { return true }
-func (e *engine) currentFPS() float64               { return e.fpsValue }
-func (e *engine) currentTPS() float64               { return e.tpsValue }
-func (e *engine) setCursorMode(mode CursorMode)     {}
-func (e *engine) deviceScaleFactor() float64        { return 1.0 }
+func (e *engine) setWindowSize(width, height int) {}
+func (e *engine) setWindowTitle(title string)     {}
+func (e *engine) setFullscreen(fullscreen bool)   {}
+func (e *engine) isFullscreen() bool              { return false }
+func (e *engine) setVSync(enabled bool)           {}
+func (e *engine) isVSync() bool                   { return true }
+func (e *engine) currentFPS() float64             { return e.fpsValue }
+func (e *engine) currentTPS() float64             { return e.tpsValue }
+func (e *engine) setCursorMode(mode CursorMode)   {}
+func (e *engine) deviceScaleFactor() float64      { return 1.0 }

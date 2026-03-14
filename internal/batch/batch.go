@@ -36,7 +36,7 @@ type DrawCommand struct {
 	Indices   []uint16
 	TextureID uint32 // opaque texture identifier for sorting
 	BlendMode backend.BlendMode
-	ShaderID  uint32 // opaque shader identifier for sorting
+	ShaderID  uint32  // opaque shader identifier for sorting
 	Depth     float32 // sort key for back-to-front or front-to-back ordering
 }
 
@@ -51,9 +51,9 @@ type Batch struct {
 
 // Batcher accumulates draw commands and produces optimized batches.
 type Batcher struct {
-	commands     []DrawCommand
-	maxVertices  int
-	maxIndices   int
+	commands    []DrawCommand
+	maxVertices int
+	maxIndices  int
 }
 
 // NewBatcher creates a new Batcher with the given capacity hints.

@@ -18,9 +18,9 @@ func NewRect(x, y, w, h float64) Rect {
 	}
 }
 
-// RectFromMinMax creates a Rect from min and max corners.
-func RectFromMinMax(min, max Vec2) Rect {
-	return Rect{Min: min, Max: max}
+// RectFromMinMax creates a Rect from lo and hi corners.
+func RectFromMinMax(lo, hi Vec2) Rect {
+	return Rect{Min: lo, Max: hi}
 }
 
 // RectFromCenter creates a Rect centered at center with the given size.
@@ -104,9 +104,9 @@ type AABB struct {
 	Min, Max Vec3
 }
 
-// NewAABB creates an AABB from min and max corners.
-func NewAABB(min, max Vec3) AABB {
-	return AABB{Min: min, Max: max}
+// NewAABB creates an AABB from lo and hi corners.
+func NewAABB(lo, hi Vec3) AABB {
+	return AABB{Min: lo, Max: hi}
 }
 
 // AABBFromCenterExtents creates an AABB from a center point and half-extents.

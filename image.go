@@ -22,7 +22,7 @@ func NewImage(width, height int) *Image {
 }
 
 // Size returns the image dimensions.
-func (img *Image) Size() (int, int) {
+func (img *Image) Size() (width, height int) {
 	return img.width, img.height
 }
 
@@ -105,8 +105,8 @@ type DrawTrianglesOptions struct {
 
 // Vertex represents a vertex for DrawTriangles.
 type Vertex struct {
-	DstX, DstY float32
-	SrcX, SrcY float32
+	DstX, DstY                     float32
+	SrcX, SrcY                     float32
 	ColorR, ColorG, ColorB, ColorA float32
 }
 
@@ -152,7 +152,7 @@ func (g *GeoM) Reset() {
 }
 
 // Apply transforms a point by this GeoM.
-func (g *GeoM) Apply(x, y float64) (float64, float64) {
+func (g *GeoM) Apply(x, y float64) (rx, ry float64) {
 	v := g.m.MulVec2(fmath.NewVec2(x, y))
 	return v.X, v.Y
 }
@@ -165,15 +165,17 @@ func (g *GeoM) Mat3() fmath.Mat3 {
 // BlendMode specifies how colors are blended.
 type BlendMode int
 
+// BlendMode constants.
 const (
-	BlendSourceOver   BlendMode = iota // Standard alpha blending
-	BlendAdditive                      // Additive blending
-	BlendMultiplicative                // Multiplicative blending
+	BlendSourceOver     BlendMode = iota // Standard alpha blending
+	BlendAdditive                        // Additive blending
+	BlendMultiplicative                  // Multiplicative blending
 )
 
 // Filter specifies texture filtering.
 type Filter int
 
+// Filter constants.
 const (
 	FilterNearest Filter = iota
 	FilterLinear
@@ -182,6 +184,7 @@ const (
 // FillRule specifies the fill rule for overlapping triangles.
 type FillRule int
 
+// FillRule constants.
 const (
 	FillRuleNonZero FillRule = iota
 	FillRuleEvenOdd

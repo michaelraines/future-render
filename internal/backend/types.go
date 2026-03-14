@@ -16,13 +16,14 @@ type VertexAttribute struct {
 // AttributeFormat specifies the data type and component count of an attribute.
 type AttributeFormat int
 
+// AttributeFormat constants.
 const (
-	// 2D attributes
+	// AttributeFloat2 is a 2-component float32 attribute.
 	AttributeFloat2 AttributeFormat = iota // 2x float32
 	AttributeFloat3                        // 3x float32
 	AttributeFloat4                        // 4x float32
 
-	// Color attributes
+	// AttributeByte4Norm is a 4-component normalized uint8 attribute.
 	AttributeByte4Norm // 4x uint8, normalized to [0,1]
 )
 
@@ -45,17 +46,19 @@ func AttributeFormatSize(f AttributeFormat) int {
 // BlendMode specifies how source and destination colors are combined.
 type BlendMode int
 
+// BlendMode constants.
 const (
-	BlendNone         BlendMode = iota // No blending (opaque)
-	BlendSourceOver                    // Standard alpha: src*srcA + dst*(1-srcA)
-	BlendAdditive                      // Additive: src + dst
-	BlendMultiplicative                // Multiply: src * dst
-	BlendPremultiplied                 // Premultiplied alpha
+	BlendNone           BlendMode = iota // No blending (opaque)
+	BlendSourceOver                      // Standard alpha: src*srcA + dst*(1-srcA)
+	BlendAdditive                        // Additive: src + dst
+	BlendMultiplicative                  // Multiply: src * dst
+	BlendPremultiplied                   // Premultiplied alpha
 )
 
 // CompareFunc specifies a depth/stencil comparison function.
 type CompareFunc int
 
+// CompareFunc constants.
 const (
 	CompareNever CompareFunc = iota
 	CompareLess
@@ -70,6 +73,7 @@ const (
 // CullMode specifies which faces to cull.
 type CullMode int
 
+// CullMode constants.
 const (
 	CullNone  CullMode = iota
 	CullFront          // Cull front-facing triangles
@@ -79,6 +83,7 @@ const (
 // PrimitiveType specifies the type of primitives to draw.
 type PrimitiveType int
 
+// PrimitiveType constants.
 const (
 	PrimitiveTriangles     PrimitiveType = iota // Triangle list
 	PrimitiveTriangleStrip                      // Triangle strip
@@ -90,6 +95,7 @@ const (
 // TextureFormat specifies the pixel format of a texture.
 type TextureFormat int
 
+// TextureFormat constants.
 const (
 	TextureFormatRGBA8    TextureFormat = iota // 4x uint8, standard
 	TextureFormatRGB8                          // 3x uint8, no alpha
@@ -103,6 +109,7 @@ const (
 // TextureFilter specifies the filtering mode for texture sampling.
 type TextureFilter int
 
+// TextureFilter constants.
 const (
 	FilterNearest TextureFilter = iota
 	FilterLinear
@@ -111,8 +118,9 @@ const (
 // TextureWrap specifies how texture coordinates outside [0,1] are handled.
 type TextureWrap int
 
+// TextureWrap constants.
 const (
-	WrapClamp  TextureWrap = iota
+	WrapClamp TextureWrap = iota
 	WrapRepeat
 	WrapMirror
 )
@@ -120,6 +128,7 @@ const (
 // IndexFormat specifies the data type of index buffer elements.
 type IndexFormat int
 
+// IndexFormat constants.
 const (
 	IndexUint16 IndexFormat = iota
 	IndexUint32

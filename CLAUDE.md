@@ -14,24 +14,41 @@ Key documents:
 
 ## Build & Test
 
+All build, test, and lint operations are run via `make`. The default target
+runs the full CI pipeline.
+
 ```bash
-# Run all tests
-go test ./...
+# Full CI pipeline: fmt → vet → lint → test → build
+make
 
-# Run tests with race detector
-go test -race ./...
-
-# Run benchmarks
-go test -bench=. ./math/ ./internal/batch/
-
-# Vet
-go vet ./...
-
-# Build (core library — no platform deps yet)
-go build ./...
+# Individual targets
+make fmt          # Check formatting (fails if files need gofmt)
+make vet          # Run go vet
+make lint         # Run golangci-lint
+make test         # Run all tests
+make test-race    # Run tests with race detector
+make bench        # Run benchmarks (math, batch)
+make build        # Build all packages
+make fix          # Auto-fix formatting and lint issues
+make clean        # Remove build artifacts
 ```
 
-There are no external dependencies yet (`go.mod` has only the standard
+### Prerequisites
+
+- Go 1.24+
+- [golangci-lint](https://golangci-lint.run/welcome/install/) (for `make lint` and `make fix`)
+
+### CI
+
+GitHub Actions runs `make ci` on every push and PR to `main`. The workflow
+lives at `.github/workflows/ci.yml` and runs: format check → vet → lint →
+test → test-race → build.
+
+Linter configuration is in `.golangci.yml`. Key enabled linters beyond
+defaults: `gocritic`, `revive`, `errname`, `errorlint`, `exhaustive`,
+`goimports`, `misspell`, `prealloc`, `unparam`.
+
+There are no external Go dependencies yet (`go.mod` has only the standard
 library). When platform backends are added, they will use build tags
 (`-tags glfw`).
 
@@ -74,28 +91,29 @@ Follow this cycle for every change:
 - Don't add features, abstractions, or "improvements" beyond what was asked
 - No empty files, placeholder packages, or premature abstractions
 
-### 3. Test
-- Run `go test ./...` after every change
-- Run `go vet ./...` to catch issues
+### 3. Test & Lint
+- Run `make` after every change (runs fmt, vet, lint, test, build)
+- If iterating quickly, use `make test` alone, then `make` before committing
 - Add tests for new logic — particularly in `math/`, `internal/batch/`,
   and `internal/pipeline/`
-- Tests must pass before committing
+- All checks must pass before committing
 
 ### 4. Verify Build
-- Run `go build ./...` to ensure everything compiles
+- `make build` ensures everything compiles (included in `make`)
 - If adding platform-specific code, verify build tags work
 
 ### 5. Update Docs
 - Update `ROADMAP.md` when completing milestone tasks
 - Don't create new markdown files unless explicitly asked
 
-### Loop: test → fix → test
-If tests fail, fix the issue and re-run. Don't commit broken code. Don't skip
-tests. Don't use `-count=0` or other tricks to hide failures.
+### Loop: make → fix → make
+If any check fails, fix the issue and re-run `make`. Don't commit broken
+code. Don't skip tests. Don't use `-count=0` or other tricks to hide
+failures. Use `make fix` to auto-fix formatting and lint issues.
 
 ## Code Style
 
-- Standard Go formatting (`gofmt`)
+- Standard Go formatting enforced by `gofmt` and `goimports` (via golangci-lint)
 - Error returns use `(T, error)` pattern, not panics
 - Exported types and functions have doc comments
 - Internal packages use `internal/` path convention

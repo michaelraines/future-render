@@ -23,12 +23,12 @@ func IsMouseButtonPressed(button MouseButton) bool {
 }
 
 // CursorPosition returns the current cursor position in logical pixels.
-func CursorPosition() (int, int) {
+func CursorPosition() (x, y int) {
 	return 0, 0
 }
 
 // Wheel returns the mouse wheel delta since the last frame.
-func Wheel() (float64, float64) {
+func Wheel() (xoff, yoff float64) {
 	return 0, 0
 }
 
@@ -38,7 +38,7 @@ func TouchIDs() []TouchID {
 }
 
 // TouchPosition returns the position of a touch point.
-func TouchPosition(id TouchID) (int, int) {
+func TouchPosition(id TouchID) (x, y int) {
 	return 0, 0
 }
 
@@ -115,6 +115,7 @@ const (
 // MouseButton represents a mouse button.
 type MouseButton int
 
+// MouseButton constants.
 const (
 	MouseButtonLeft MouseButton = iota
 	MouseButtonRight

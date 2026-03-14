@@ -94,8 +94,8 @@ type TextureDescriptor struct {
 	Filter        TextureFilter
 	WrapU, WrapV  TextureWrap
 	MipMapped     bool
-	RenderTarget  bool   // can this texture be used as a render target attachment?
-	Data          []byte // optional initial data
+	RenderTarget  bool        // can this texture be used as a render target attachment?
+	Data          []byte      // optional initial data
 	Image         *image.RGBA // optional initial image
 }
 
@@ -125,8 +125,9 @@ type BufferDescriptor struct {
 // BufferUsage specifies how a buffer will be used.
 type BufferUsage int
 
+// BufferUsage constants.
 const (
-	BufferUsageVertex  BufferUsage = iota
+	BufferUsageVertex BufferUsage = iota
 	BufferUsageIndex
 	BufferUsageUniform
 )
@@ -261,16 +262,18 @@ type RenderPassDescriptor struct {
 // LoadAction specifies what happens to render target contents at pass start.
 type LoadAction int
 
+// LoadAction constants.
 const (
 	LoadActionClear    LoadAction = iota // Clear to ClearColor/ClearDepth
-	LoadActionLoad                      // Preserve existing contents
-	LoadActionDontCare                  // Contents are undefined
+	LoadActionLoad                       // Preserve existing contents
+	LoadActionDontCare                   // Contents are undefined
 )
 
 // StoreAction specifies what happens to render target contents at pass end.
 type StoreAction int
 
+// StoreAction constants.
 const (
 	StoreActionStore    StoreAction = iota // Preserve rendered contents
-	StoreActionDontCare                   // Contents may be discarded
+	StoreActionDontCare                    // Contents may be discarded
 )

@@ -134,8 +134,11 @@ type GamepadEvent struct {
 type Action int
 
 const (
-	ActionPress   Action = iota
+	// ActionPress indicates a key or button was pressed.
+	ActionPress Action = iota
+	// ActionRelease indicates a key or button was released.
 	ActionRelease
+	// ActionRepeat indicates a key is being held (repeat event).
 	ActionRepeat
 )
 
@@ -143,11 +146,17 @@ const (
 type Modifier int
 
 const (
-	ModShift   Modifier = 1 << iota
+	// ModShift indicates the Shift key modifier.
+	ModShift Modifier = 1 << iota
+	// ModControl indicates the Control key modifier.
 	ModControl
+	// ModAlt indicates the Alt key modifier.
 	ModAlt
+	// ModSuper indicates the Super/Command key modifier.
 	ModSuper
+	// ModCapsLock indicates Caps Lock is active.
 	ModCapsLock
+	// ModNumLock indicates Num Lock is active.
 	ModNumLock
 )
 
@@ -155,9 +164,14 @@ const (
 type MouseButton int
 
 const (
-	MouseButtonLeft   MouseButton = iota
+	// MouseButtonLeft is the left mouse button.
+	MouseButtonLeft MouseButton = iota
+	// MouseButtonRight is the right mouse button.
 	MouseButtonRight
+	// MouseButtonMiddle is the middle mouse button.
 	MouseButtonMiddle
+	// MouseButton4 is the 4th mouse button.
 	MouseButton4
+	// MouseButton5 is the 5th mouse button.
 	MouseButton5
 )
