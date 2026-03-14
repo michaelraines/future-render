@@ -1,0 +1,138 @@
+package backend
+
+// VertexFormat describes the layout of vertex attributes in a vertex buffer.
+type VertexFormat struct {
+	Attributes []VertexAttribute
+	Stride     int // bytes per vertex
+}
+
+// VertexAttribute describes a single vertex attribute.
+type VertexAttribute struct {
+	Name   string
+	Format AttributeFormat
+	Offset int // byte offset within the vertex
+}
+
+// AttributeFormat specifies the data type and component count of an attribute.
+type AttributeFormat int
+
+const (
+	// 2D attributes
+	AttributeFloat2 AttributeFormat = iota // 2x float32
+	AttributeFloat3                        // 3x float32
+	AttributeFloat4                        // 4x float32
+
+	// Color attributes
+	AttributeByte4Norm // 4x uint8, normalized to [0,1]
+)
+
+// AttributeFormatSize returns the byte size of an attribute format.
+func AttributeFormatSize(f AttributeFormat) int {
+	switch f {
+	case AttributeFloat2:
+		return 8
+	case AttributeFloat3:
+		return 12
+	case AttributeFloat4:
+		return 16
+	case AttributeByte4Norm:
+		return 4
+	default:
+		return 0
+	}
+}
+
+// BlendMode specifies how source and destination colors are combined.
+type BlendMode int
+
+const (
+	BlendNone         BlendMode = iota // No blending (opaque)
+	BlendSourceOver                    // Standard alpha: src*srcA + dst*(1-srcA)
+	BlendAdditive                      // Additive: src + dst
+	BlendMultiplicative                // Multiply: src * dst
+	BlendPremultiplied                 // Premultiplied alpha
+)
+
+// CompareFunc specifies a depth/stencil comparison function.
+type CompareFunc int
+
+const (
+	CompareNever CompareFunc = iota
+	CompareLess
+	CompareLessEqual
+	CompareEqual
+	CompareGreaterEqual
+	CompareGreater
+	CompareNotEqual
+	CompareAlways
+)
+
+// CullMode specifies which faces to cull.
+type CullMode int
+
+const (
+	CullNone  CullMode = iota
+	CullFront          // Cull front-facing triangles
+	CullBack           // Cull back-facing triangles
+)
+
+// PrimitiveType specifies the type of primitives to draw.
+type PrimitiveType int
+
+const (
+	PrimitiveTriangles     PrimitiveType = iota // Triangle list
+	PrimitiveTriangleStrip                      // Triangle strip
+	PrimitiveLines                              // Line list
+	PrimitiveLineStrip                          // Line strip
+	PrimitivePoints                             // Point list
+)
+
+// TextureFormat specifies the pixel format of a texture.
+type TextureFormat int
+
+const (
+	TextureFormatRGBA8    TextureFormat = iota // 4x uint8, standard
+	TextureFormatRGB8                          // 3x uint8, no alpha
+	TextureFormatR8                            // 1x uint8 (grayscale/alpha)
+	TextureFormatRGBA16F                       // 4x float16, HDR
+	TextureFormatRGBA32F                       // 4x float32, HDR
+	TextureFormatDepth24                       // 24-bit depth
+	TextureFormatDepth32F                      // 32-bit float depth
+)
+
+// TextureFilter specifies the filtering mode for texture sampling.
+type TextureFilter int
+
+const (
+	FilterNearest TextureFilter = iota
+	FilterLinear
+)
+
+// TextureWrap specifies how texture coordinates outside [0,1] are handled.
+type TextureWrap int
+
+const (
+	WrapClamp  TextureWrap = iota
+	WrapRepeat
+	WrapMirror
+)
+
+// IndexFormat specifies the data type of index buffer elements.
+type IndexFormat int
+
+const (
+	IndexUint16 IndexFormat = iota
+	IndexUint32
+)
+
+// Viewport defines the rendering viewport.
+type Viewport struct {
+	X, Y          int
+	Width, Height int
+}
+
+// ScissorRect defines the scissor test rectangle.
+type ScissorRect struct {
+	X, Y          int
+	Width, Height int
+}

@@ -1,0 +1,163 @@
+// Package platform defines the interface for platform-specific windowing,
+// input, and timing operations.
+package platform
+
+// Window represents a platform window.
+type Window interface {
+	// Create creates the window with the given configuration.
+	Create(cfg WindowConfig) error
+
+	// Destroy closes and releases the window.
+	Destroy()
+
+	// ShouldClose returns whether the window has been requested to close.
+	ShouldClose() bool
+
+	// PollEvents processes pending input events.
+	PollEvents()
+
+	// SwapBuffers swaps the front and back buffers (for OpenGL).
+	SwapBuffers()
+
+	// Size returns the window size in logical pixels.
+	Size() (int, int)
+
+	// FramebufferSize returns the framebuffer size in physical pixels.
+	FramebufferSize() (int, int)
+
+	// DevicePixelRatio returns the ratio of physical to logical pixels.
+	DevicePixelRatio() float64
+
+	// SetTitle sets the window title.
+	SetTitle(title string)
+
+	// SetSize sets the window size in logical pixels.
+	SetSize(width, height int)
+
+	// SetFullscreen sets fullscreen mode.
+	SetFullscreen(fullscreen bool)
+
+	// IsFullscreen returns whether the window is in fullscreen mode.
+	IsFullscreen() bool
+
+	// SetCursorVisible shows or hides the cursor.
+	SetCursorVisible(visible bool)
+
+	// SetCursorLocked locks or unlocks the cursor to the window.
+	SetCursorLocked(locked bool)
+
+	// NativeHandle returns a platform-specific window handle.
+	NativeHandle() uintptr
+
+	// SetInputHandler sets the handler for input events.
+	SetInputHandler(handler InputHandler)
+}
+
+// WindowConfig holds configuration for window creation.
+type WindowConfig struct {
+	Title         string
+	Width, Height int
+	Resizable     bool
+	Fullscreen    bool
+	VSync         bool
+	Decorated     bool // window decorations (title bar, borders)
+	Transparent   bool
+	HighDPI       bool
+}
+
+// DefaultWindowConfig returns a reasonable default window configuration.
+func DefaultWindowConfig() WindowConfig {
+	return WindowConfig{
+		Title:     "Future Render",
+		Width:     800,
+		Height:    600,
+		Resizable: true,
+		Decorated: true,
+		HighDPI:   true,
+		VSync:     true,
+	}
+}
+
+// InputHandler receives input events from the window.
+type InputHandler interface {
+	OnKeyEvent(event KeyEvent)
+	OnMouseButtonEvent(event MouseButtonEvent)
+	OnMouseMoveEvent(event MouseMoveEvent)
+	OnMouseScrollEvent(event MouseScrollEvent)
+	OnTouchEvent(event TouchEvent)
+	OnGamepadEvent(event GamepadEvent)
+	OnResizeEvent(width, height int)
+}
+
+// KeyEvent represents a keyboard event.
+type KeyEvent struct {
+	Key    Key
+	Action Action
+	Mods   Modifier
+}
+
+// MouseButtonEvent represents a mouse button event.
+type MouseButtonEvent struct {
+	Button MouseButton
+	Action Action
+	X, Y   float64
+	Mods   Modifier
+}
+
+// MouseMoveEvent represents a mouse movement event.
+type MouseMoveEvent struct {
+	X, Y   float64
+	DX, DY float64 // delta movement
+}
+
+// MouseScrollEvent represents a mouse scroll event.
+type MouseScrollEvent struct {
+	DX, DY float64
+}
+
+// TouchEvent represents a touch event.
+type TouchEvent struct {
+	ID       int
+	Action   Action
+	X, Y     float64
+	Pressure float64
+}
+
+// GamepadEvent represents a gamepad state update.
+type GamepadEvent struct {
+	ID      int
+	Axes    [6]float64
+	Buttons [16]bool
+}
+
+// Action represents an input action.
+type Action int
+
+const (
+	ActionPress   Action = iota
+	ActionRelease
+	ActionRepeat
+)
+
+// Modifier represents keyboard modifier flags.
+type Modifier int
+
+const (
+	ModShift   Modifier = 1 << iota
+	ModControl
+	ModAlt
+	ModSuper
+	ModCapsLock
+	ModNumLock
+)
+
+// MouseButton represents a mouse button.
+type MouseButton int
+
+const (
+	MouseButtonLeft   MouseButton = iota
+	MouseButtonRight
+	MouseButtonMiddle
+	MouseButton4
+	MouseButton5
+)
