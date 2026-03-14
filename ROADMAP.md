@@ -189,21 +189,36 @@ changes (import path swap + minor API adjustments).
 
 ---
 
-## Milestone 9 — Additional Backends (Future)
+## Milestone 9 — WebGL + Vulkan Backends (Planned)
 
-Goal: run on Metal, WebGL/WebGPU, and eventually Vulkan.
+Goal: WebGL and Vulkan are required compatibility targets alongside OpenGL.
+All three backends must pass the same integration test suite.
+
+| Task | Status | Notes |
+|---|---|---|
+| WebGL2 backend (`internal/backend/webgl/`) | Planned | WASM target, GOOS=js GOARCH=wasm |
+| WebGL2 platform shim (canvas, requestAnimationFrame) | Planned | `internal/platform/web/` |
+| Vulkan backend (`internal/backend/vulkan/`) | Planned | Linux/Windows/Android |
+| Vulkan platform integration (surface creation) | Planned | GLFW Vulkan surface support |
+| Backend conformance test suite | Planned | Shared tests all 3 backends must pass |
+| `FUTURE_RENDER_BACKEND` runtime selection (opengl/webgl/vulkan/auto) | Planned | Auto-detect based on platform |
+| Software rasterizer (testing) | Planned | Headless CI fallback |
+
+---
+
+## Milestone 10 — Additional Backends (Future)
+
+Goal: Metal, WebGPU, and other platform-specific backends.
 
 | Task | Status | Notes |
 |---|---|---|
 | Metal backend (`internal/backend/metal/`) | Future | macOS/iOS |
-| WebGL2 backend (`internal/backend/webgl/`) | Future | WASM target |
-| WebGPU backend | Future | Modern web |
-| Vulkan backend | Future | Linux/Windows/Android |
-| Software rasterizer (testing) | Future | Headless CI |
+| WebGPU backend | Future | Modern web, successor to WebGL path |
+| DirectX 12 backend | Future | Windows |
 
 ---
 
-## Milestone 10 — 3D Rendering (Future)
+## Milestone 11 — 3D Rendering (Future)
 
 Goal: 3D mesh rendering, lighting, materials — as described in FUTURE_3D.md.
 

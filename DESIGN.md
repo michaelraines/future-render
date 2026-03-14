@@ -118,12 +118,12 @@ render targets (e.g., a software rasterizer for testing) only needs to stub `Ren
 
 ### Backend Selection
 
-Phase 1: OpenGL 3.3+ (desktop), OpenGL ES 3.0 (mobile/web).
-Future: Metal, Vulkan, WebGPU.
+Required backends: OpenGL 3.3+ (desktop), WebGL2 (web/WASM), Vulkan (desktop/Android).
+Future: Metal, WebGPU, DirectX 12.
 
 Selection is compile-time via build tags and runtime via environment variable:
 ```
-FUTURE_RENDER_BACKEND=opengl|metal|vulkan|auto
+FUTURE_RENDER_BACKEND=opengl|webgl|vulkan|auto
 ```
 
 ---
