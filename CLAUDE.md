@@ -125,6 +125,70 @@ failures. Use `make fix` to auto-fix formatting and lint issues.
 - Test files are `*_test.go` in the same package
 - Benchmarks use `Benchmark*` naming convention
 
+## Test Writing Rules
+
+**All tests use [testify](https://github.com/stretchr/testify) with `require`
+(Must-style) assertions.** This is non-negotiable.
+
+### Required patterns
+
+1. **Use `require` (not `assert`) for all assertions.** `require` stops the
+   test immediately on failure, preventing cascading errors and nil panics.
+
+   ```go
+   import "github.com/stretchr/testify/require"
+
+   func TestSomething(t *testing.T) {
+       result, err := DoThing()
+       require.NoError(t, err)
+       require.Equal(t, expected, result)
+   }
+   ```
+
+2. **Never use raw `t.Errorf` / `t.Fatalf` / `if` checks.** Always use
+   `require.*` functions instead.
+
+   ```go
+   // BAD — do not do this
+   if got != want {
+       t.Errorf("got %v, want %v", got, want)
+   }
+
+   // GOOD
+   require.Equal(t, want, got)
+   ```
+
+3. **Use `require.InEpsilon` or `require.InDelta` for float comparisons.**
+
+   ```go
+   require.InDelta(t, 1.0, result, 1e-6)
+   require.InEpsilon(t, expected, actual, 1e-6)
+   ```
+
+4. **Table-driven tests** use `t.Run` with `require`:
+
+   ```go
+   tests := []struct{ name string; in, want float64 }{
+       {"positive", 2, 4},
+       {"zero", 0, 0},
+   }
+   for _, tt := range tests {
+       t.Run(tt.name, func(t *testing.T) {
+           require.InDelta(t, tt.want, compute(tt.in), 1e-9)
+       })
+   }
+   ```
+
+5. **Test function naming**: `Test<Type><Method>` or `Test<Function>`, e.g.
+   `TestVec2Add`, `TestMat4Inverse`, `TestNewImage`.
+
+### Forbidden patterns
+
+- `t.Errorf`, `t.Fatalf`, `t.Error`, `t.Fatal` — use `require.*` instead
+- `if got != want { t.Errorf(...) }` — use `require.Equal`
+- `assert.*` — use `require.*` (fail immediately, not at end)
+- Manual epsilon comparisons — use `require.InDelta` / `require.InEpsilon`
+
 ## Naming Conventions
 
 - Public API types match Ebitengine where applicable: `Game`, `Image`,
