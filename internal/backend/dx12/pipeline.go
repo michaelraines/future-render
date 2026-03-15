@@ -6,9 +6,9 @@ import "github.com/michaelraines/future-render/internal/backend"
 // Models an ID3D12PipelineState (graphics PSO) with an associated
 // root signature.
 type Pipeline struct {
-	inner backend.Pipeline
-	desc  backend.PipelineDescriptor
+	backend.Pipeline // delegates Dispose to inner
+	Desc             backend.PipelineDescriptor
 }
 
-// Dispose releases the pipeline.
-func (p *Pipeline) Dispose() { p.inner.Dispose() }
+// InnerPipeline returns the wrapped soft pipeline for encoder unwrapping.
+func (p *Pipeline) InnerPipeline() backend.Pipeline { return p.Pipeline }

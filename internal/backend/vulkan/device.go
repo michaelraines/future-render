@@ -11,6 +11,7 @@ import (
 
 	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/michaelraines/future-render/internal/backend/soft"
+	"github.com/michaelraines/future-render/internal/backend/softdelegate"
 )
 
 // Device implements backend.Device for Vulkan.
@@ -97,7 +98,7 @@ func (d *Device) NewTexture(desc backend.TextureDescriptor) (backend.Texture, er
 		return nil, fmt.Errorf("vulkan: %w", err)
 	}
 	return &Texture{
-		inner:     inner,
+		Texture:   inner,
 		vkFormat:  vkFormatFromTextureFormat(desc.Format),
 		vkUsage:   vkImageUsageSampled | vkImageUsageTransferDst,
 		mipLevels: 1,
@@ -111,7 +112,7 @@ func (d *Device) NewBuffer(desc backend.BufferDescriptor) (backend.Buffer, error
 		return nil, fmt.Errorf("vulkan: %w", err)
 	}
 	return &Buffer{
-		inner:   inner,
+		Buffer:  inner,
 		vkUsage: vkBufferUsageFromBackend(desc.Usage),
 	}, nil
 }
@@ -123,7 +124,7 @@ func (d *Device) NewShader(desc backend.ShaderDescriptor) (backend.Shader, error
 		return nil, fmt.Errorf("vulkan: %w", err)
 	}
 	return &Shader{
-		inner: inner,
+		Shader: inner,
 	}, nil
 }
 
@@ -133,7 +134,7 @@ func (d *Device) NewRenderTarget(desc backend.RenderTargetDescriptor) (backend.R
 	if err != nil {
 		return nil, fmt.Errorf("vulkan: %w", err)
 	}
-	return &RenderTarget{inner: inner}, nil
+	return &RenderTarget{RenderTarget: inner}, nil
 }
 
 // NewPipeline creates a Vulkan graphics pipeline (VkPipeline).
@@ -142,7 +143,7 @@ func (d *Device) NewPipeline(desc backend.PipelineDescriptor) (backend.Pipeline,
 	if err != nil {
 		return nil, fmt.Errorf("vulkan: %w", err)
 	}
-	return &Pipeline{inner: inner, desc: desc}, nil
+	return &Pipeline{Pipeline: inner, Desc: desc}, nil
 }
 
 // Capabilities returns Vulkan device capabilities.
@@ -160,5 +161,5 @@ func (d *Device) Capabilities() backend.DeviceCapabilities {
 
 // Encoder returns the command encoder.
 func (d *Device) Encoder() backend.CommandEncoder {
-	return &Encoder{inner: d.inner.Encoder()}
+	return &Encoder{Encoder: softdelegate.Encoder{Inner: d.inner.Encoder()}}
 }

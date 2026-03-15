@@ -123,6 +123,47 @@ func TestGlyphCacheNilAtlas(t *testing.T) {
 	require.False(t, g.empty)
 }
 
+func TestGlyphCacheInvalidatedOnAtlasGrow(t *testing.T) {
+	face, err := NewFace(goregular.TTF, 24)
+	require.NoError(t, err)
+
+	atlas := &fontAtlas{size: 16}
+	atlas.image = futurerender.NewImage(16, 16)
+
+	// Cache a glyph.
+	g1 := face.cache.get('A', atlas)
+	require.NotNil(t, g1)
+	require.Len(t, face.cache.entries, 1)
+
+	gen0 := atlas.generation
+
+	// Force a grow — this increments generation and rebuilds the atlas image.
+	grew := atlas.grow()
+	require.True(t, grew)
+	require.Greater(t, atlas.generation, gen0)
+
+	// The cache still has the stale entry for 'A'. The next get() call
+	// should detect the generation mismatch, clear the cache, and re-rasterize.
+	g2 := face.cache.get('A', atlas)
+	require.NotNil(t, g2)
+	// After invalidation, only 'A' should be in the cache (freshly rasterized).
+	require.Len(t, face.cache.entries, 1)
+	// The pointer must differ — it's a new entry, not the stale one.
+	require.True(t, g1 != g2, "entry pointer should differ after re-rasterize")
+}
+
+func TestGlyphCacheNotInvalidatedWithoutGrow(t *testing.T) {
+	face, err := NewFace(goregular.TTF, 24)
+	require.NoError(t, err)
+
+	atlas := newFontAtlas()
+	atlas.image = futurerender.NewImage(512, 512)
+
+	g1 := face.cache.get('B', atlas)
+	g2 := face.cache.get('B', atlas)
+	require.Equal(t, g1, g2, "same atlas generation should return cached entry")
+}
+
 // --- Atlas tests ---
 
 func TestAtlasAllocate(t *testing.T) {
@@ -179,6 +220,21 @@ func TestAtlasGrowth(t *testing.T) {
 	_, _, ok = a.allocate(10, 10)
 	require.True(t, ok)
 	require.Equal(t, 32, a.size)
+}
+
+func TestAtlasGrowthIncrementsGeneration(t *testing.T) {
+	a := &fontAtlas{size: 16}
+	a.image = futurerender.NewImage(16, 16)
+
+	require.Equal(t, 0, a.generation)
+
+	require.True(t, a.grow())
+	require.Equal(t, 1, a.generation)
+	require.Equal(t, 32, a.size)
+
+	require.True(t, a.grow())
+	require.Equal(t, 2, a.generation)
+	require.Equal(t, 64, a.size)
 }
 
 func TestAtlasGrowthLimit(t *testing.T) {

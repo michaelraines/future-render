@@ -5,18 +5,9 @@ import "github.com/michaelraines/future-render/internal/backend"
 // Buffer implements backend.Buffer for Metal.
 // Models an MTLBuffer object.
 type Buffer struct {
-	inner       backend.Buffer
-	storageMode int // MTLStorageMode
+	backend.Buffer     // delegates all Buffer methods to inner
+	storageMode    int // MTLStorageMode
 }
 
-// Upload replaces the entire buffer data.
-func (b *Buffer) Upload(data []byte) { b.inner.Upload(data) }
-
-// UploadRegion uploads data to a region of the buffer.
-func (b *Buffer) UploadRegion(data []byte, offset int) { b.inner.UploadRegion(data, offset) }
-
-// Size returns the buffer size in bytes.
-func (b *Buffer) Size() int { return b.inner.Size() }
-
-// Dispose releases the buffer.
-func (b *Buffer) Dispose() { b.inner.Dispose() }
+// InnerBuffer returns the wrapped soft buffer for encoder unwrapping.
+func (b *Buffer) InnerBuffer() backend.Buffer { return b.Buffer }

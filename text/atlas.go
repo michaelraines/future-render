@@ -17,6 +17,10 @@ type fontAtlas struct {
 	image *futurerender.Image
 	size  int // current atlas dimension (square)
 
+	// generation increments on every grow(), allowing caches to detect
+	// that their stored atlas coordinates are stale.
+	generation int
+
 	// Row packing state.
 	rows []atlasRow
 }
@@ -101,6 +105,7 @@ func (a *fontAtlas) grow() bool {
 	}
 	a.image = futurerender.NewImage(newSize, newSize)
 	a.rows = a.rows[:0]
+	a.generation++
 	return true
 }
 

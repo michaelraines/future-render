@@ -30,6 +30,11 @@ type glyphEntry struct {
 type glyphCache struct {
 	face    *Face
 	entries map[rune]*glyphEntry
+
+	// generation tracks the atlas generation at the time entries were cached.
+	// When the atlas grows, its generation increments and all cached atlas
+	// coordinates become stale. get() detects this mismatch and re-rasterizes.
+	generation int
 }
 
 // newGlyphCache creates a glyph cache for the given face.
@@ -42,7 +47,15 @@ func newGlyphCache(f *Face) *glyphCache {
 
 // get returns the glyph entry for the given rune, rasterizing it if needed.
 // atlas must be provided for new glyphs that need atlas allocation.
+// If the atlas has grown since the last call, all cached entries are discarded
+// because their atlas coordinates are stale.
 func (c *glyphCache) get(r rune, atlas *fontAtlas) *glyphEntry {
+	if atlas != nil && atlas.generation != c.generation {
+		// Atlas was rebuilt — all cached coordinates are invalid.
+		clear(c.entries)
+		c.generation = atlas.generation
+	}
+
 	if e, ok := c.entries[r]; ok {
 		return e
 	}
