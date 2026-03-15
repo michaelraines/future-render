@@ -21,6 +21,7 @@ package futurerender
 
 import (
 	"errors"
+	"os"
 	"sync/atomic"
 )
 
@@ -145,6 +146,22 @@ const (
 	CursorModeCaptured                   // Hidden and locked to window
 )
 
+// Backend returns the current rendering backend name.
+// This is determined by the FUTURE_RENDER_BACKEND environment variable
+// or defaults to "auto" (selects the best available backend).
+// Supported values: "auto", "opengl".
+func Backend() string {
+	return backendName()
+}
+
+// backendName returns the backend name from the environment or default.
+func backendName() string {
+	if v := os.Getenv("FUTURE_RENDER_BACKEND"); v != "" {
+		return v
+	}
+	return "auto"
+}
+
 // DeviceScaleFactor returns the device pixel ratio.
 func DeviceScaleFactor() float64 {
 	if globalEngine != nil {
@@ -153,11 +170,26 @@ func DeviceScaleFactor() float64 {
 	return 1.0
 }
 
+// SetScreenClearedEveryFrame controls whether the screen is cleared at the
+// start of each frame. The default is true. When set to false, the previous
+// frame's content is preserved (useful for paint-like applications).
+func SetScreenClearedEveryFrame(cleared bool) {
+	screenClearedEveryFrame.Store(cleared)
+}
+
+// IsScreenClearedEveryFrame returns whether the screen is cleared each frame.
+func IsScreenClearedEveryFrame() bool {
+	return screenClearedEveryFrame.Load()
+}
+
 // --- Engine internals ---
 
 var (
 	globalEngine *engine
 	maxTPS       atomic.Int64
+
+	// screenClearedEveryFrame controls whether the screen is cleared each frame.
+	screenClearedEveryFrame atomic.Bool
 
 	// Pre-run configuration stored as package-level state so that
 	// SetWindowSize/SetWindowTitle can be called before RunGame.
@@ -168,6 +200,7 @@ var (
 
 func init() {
 	maxTPS.Store(60)
+	screenClearedEveryFrame.Store(true)
 }
 
 // engine is defined per-platform in engine_stub.go / engine_glfw.go.

@@ -27,6 +27,10 @@ type renderer struct {
 	// registerShader is called when a new shader is created so the
 	// pipeline can look it up by ID during rendering.
 	registerShader func(id uint32, shader *Shader)
+
+	// registerRenderTarget is called when a new render target is created
+	// so the engine can resolve target IDs during rendering.
+	registerRenderTarget func(id uint32, rt backend.RenderTarget)
 }
 
 // globalRenderer is the active renderer, set by the engine during init.

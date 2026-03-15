@@ -242,3 +242,27 @@ func TestCursorModeConstants(t *testing.T) {
 	require.Equal(t, CursorMode(1), CursorModeHidden)
 	require.Equal(t, CursorMode(2), CursorModeCaptured)
 }
+
+func TestScreenClearedEveryFrameDefault(t *testing.T) {
+	require.True(t, IsScreenClearedEveryFrame())
+}
+
+func TestBackendDefault(t *testing.T) {
+	t.Setenv("FUTURE_RENDER_BACKEND", "")
+	require.Equal(t, "auto", Backend())
+}
+
+func TestBackendEnvVar(t *testing.T) {
+	t.Setenv("FUTURE_RENDER_BACKEND", "opengl")
+	require.Equal(t, "opengl", Backend())
+}
+
+func TestSetScreenClearedEveryFrame(t *testing.T) {
+	defer SetScreenClearedEveryFrame(true)
+
+	SetScreenClearedEveryFrame(false)
+	require.False(t, IsScreenClearedEveryFrame())
+
+	SetScreenClearedEveryFrame(true)
+	require.True(t, IsScreenClearedEveryFrame())
+}

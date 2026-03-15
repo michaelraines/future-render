@@ -74,6 +74,10 @@ type Texture interface {
 	// UploadRegion uploads pixel data to a rectangular region.
 	UploadRegion(data []byte, x, y, width, height, level int)
 
+	// ReadPixels reads RGBA pixel data from the texture into dst.
+	// dst must be at least 4*width*height bytes.
+	ReadPixels(dst []byte)
+
 	// Width returns the texture width.
 	Width() int
 

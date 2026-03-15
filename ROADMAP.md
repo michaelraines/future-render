@@ -265,25 +265,34 @@ root package 97.2%, pipeline 85.3%.
 
 ---
 
-## Milestone 8 — Advanced 2D Features (Planned)
+## Milestone 8 — Advanced 2D Features (Done)
 
 Goal: remaining Ebitengine 2D feature parity.
 
 | Task | Status | Notes |
 |---|---|---|
-| Off-screen render targets (`NewImage` as target) | Planned | Already in backend types |
-| ColorMatrix transformation | Planned | `ColorM` equivalent |
-| Screen capture / `ReadPixels` | Planned | |
-| `SetScreenClearedEveryFrame(false)` | Planned | Accumulation rendering |
-| Window resize handling + `Layout` re-evaluation | Planned | |
-| High-DPI / device scale factor | Planned | |
-| Multiple windows (stretch goal) | Planned | |
-| Context loss recovery (mobile/web) | Planned | Godot-inspired command replay |
-| `FUTURE_RENDER_BACKEND` env var selection | Planned | |
-| Vsync toggle at runtime | Planned | |
+| Off-screen render targets (`NewImage` as target) | Done | Image.renderTarget + TargetID batching + per-target render passes |
+| ColorMatrix transformation | Done | `uColorBody` mat4 + `uColorTranslation` vec4 uniforms, per-batch |
+| Screen capture / `ReadPixels` | Done | `Texture.ReadPixels` + `Image.ReadPixels` |
+| `SetScreenClearedEveryFrame(false)` | Done | Atomic bool, controls LoadAction in sprite pass |
+| Window resize handling + `Layout` re-evaluation | Done | Already working from M3 |
+| High-DPI / device scale factor | Done | Already working from M3 |
+| Multiple windows (stretch goal) | Deferred | Phase 2 |
+| Context loss recovery (mobile/web) | Deferred | Godot-inspired command replay |
+| `FUTURE_RENDER_BACKEND` env var selection | Done | `Backend()` reads FUTURE_RENDER_BACKEND, defaults to "auto" |
+| Vsync toggle at runtime | Done | `SetVsyncEnabled`/`IsVsyncEnabled` already in M3 |
+| `Image.Clear()` | Done | Fills with transparent black |
 
 **Exit criteria**: all Ebitengine 2D examples can be ported with minimal
 changes (import path swap + minor API adjustments).
+
+**Completed**: Off-screen render targets via `backend.RenderTarget` with per-
+image FBOs created alongside textures. Batcher sorts by TargetID first, then
+sprite pass iterates render target groups with BeginRenderPass/EndRenderPass
+per target. ReadPixels via `glGetTexImage` in OpenGL backend. ColorM wired to
+fragment shader via `uColorBody` (mat4) and `uColorTranslation` (vec4) uniforms
+set per-batch. SetScreenClearedEveryFrame as atomic bool. FUTURE_RENDER_BACKEND
+env var for backend selection. Coverage: root 97.4%, pipeline 90.6%, batch 97.5%.
 
 ---
 

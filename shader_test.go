@@ -70,9 +70,10 @@ func withShaderRenderer(t *testing.T) *shaderMockDevice {
 	dev := &shaderMockDevice{}
 	registeredShaders := make(map[uint32]*Shader)
 	rend := &renderer{
-		device:          dev,
-		batcher:         batch.NewBatcher(1024, 1024),
-		registerTexture: func(_ uint32, _ backend.Texture) {},
+		device:               dev,
+		batcher:              batch.NewBatcher(1024, 1024),
+		registerTexture:      func(_ uint32, _ backend.Texture) {},
+		registerRenderTarget: func(_ uint32, _ backend.RenderTarget) {},
 		registerShader: func(id uint32, shader *Shader) {
 			registeredShaders[id] = shader
 		},

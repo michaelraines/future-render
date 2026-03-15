@@ -206,6 +206,8 @@ var (
 	fnDeleteSamplers    func(n int32, samplers *uint32)
 	fnBindSampler       func(unit, sampler uint32)
 	fnSamplerParameteri func(sampler, pname uint32, param int32)
+
+	fnGetTexImage func(target uint32, level int32, format, typ uint32, pixels uintptr)
 )
 
 // lib holds the loaded OpenGL library handle.
@@ -259,6 +261,10 @@ func TexImage2D(target uint32, level, internalformat int32, width, height, borde
 
 func TexSubImage2D(target uint32, level, xoffset, yoffset, width, height int32, format, typ uint32, pixels unsafe.Pointer) {
 	fnTexSubImage2D(target, level, xoffset, yoffset, width, height, format, typ, uintptr(pixels))
+}
+
+func GetTexImage(target uint32, level int32, format, typ uint32, pixels unsafe.Pointer) {
+	fnGetTexImage(target, level, format, typ, uintptr(pixels))
 }
 
 func GenBuffers(n int32, buffers *uint32)    { fnGenBuffers(n, buffers) }
@@ -488,6 +494,7 @@ func Init() error {
 		{&fnTexParameteri, "glTexParameteri"},
 		{&fnTexImage2D, "glTexImage2D"},
 		{&fnTexSubImage2D, "glTexSubImage2D"},
+		{&fnGetTexImage, "glGetTexImage"},
 		{&fnStencilFunc, "glStencilFunc"},
 		{&fnStencilOp, "glStencilOp"},
 		{&fnStencilMask, "glStencilMask"},

@@ -22,6 +22,10 @@ type Image struct {
 	texture   backend.Texture
 	textureID uint32
 
+	// renderTarget is the off-screen framebuffer for this image.
+	// Non-nil when this image is used as a draw target.
+	renderTarget backend.RenderTarget
+
 	// Sub-image UV region within the parent texture.
 	// Full image: u0=0, v0=0, u1=1, v1=1.
 	parent         *Image
@@ -38,21 +42,35 @@ func NewImage(width, height int) *Image {
 		u1: 1, v1: 1,
 	}
 
-	// Allocate GPU texture if a device is available.
+	// Allocate GPU texture and render target if a device is available.
 	if globalRenderer != nil && globalRenderer.device != nil {
 		tex, err := globalRenderer.device.NewTexture(backend.TextureDescriptor{
-			Width:  width,
-			Height: height,
-			Format: backend.TextureFormatRGBA8,
-			Filter: backend.FilterNearest,
-			WrapU:  backend.WrapClamp,
-			WrapV:  backend.WrapClamp,
+			Width:        width,
+			Height:       height,
+			Format:       backend.TextureFormatRGBA8,
+			Filter:       backend.FilterNearest,
+			WrapU:        backend.WrapClamp,
+			WrapV:        backend.WrapClamp,
+			RenderTarget: true,
 		})
 		if err == nil {
 			img.texture = tex
 			img.textureID = globalRenderer.allocTextureID()
 			if globalRenderer.registerTexture != nil {
 				globalRenderer.registerTexture(img.textureID, tex)
+			}
+		}
+
+		// Create render target so this image can be drawn to.
+		rt, rtErr := globalRenderer.device.NewRenderTarget(backend.RenderTargetDescriptor{
+			Width:       width,
+			Height:      height,
+			ColorFormat: backend.TextureFormatRGBA8,
+		})
+		if rtErr == nil {
+			img.renderTarget = rt
+			if globalRenderer.registerRenderTarget != nil {
+				globalRenderer.registerRenderTarget(img.textureID, rt)
 			}
 		}
 	}
@@ -150,6 +168,7 @@ func (img *Image) DrawImage(src *Image, opts *DrawImageOptions) {
 	// Map public blend mode and filter to backend types.
 	blend := blendToBackend(o.Blend)
 	filter := filterToBackend(o.Filter)
+	colorBody, colorTrans := colorMatrixToUniforms(o.ColorM)
 
 	globalRenderer.batcher.Add(batch.DrawCommand{
 		Vertices: []batch.Vertex2D{
@@ -158,11 +177,14 @@ func (img *Image) DrawImage(src *Image, opts *DrawImageOptions) {
 			{PosX: float32(x2), PosY: float32(y2), TexU: u1, TexV: v1, R: cr, G: cg, B: cb, A: ca},
 			{PosX: float32(x3), PosY: float32(y3), TexU: u0, TexV: v1, R: cr, G: cg, B: cb, A: ca},
 		},
-		Indices:   []uint16{0, 1, 2, 0, 2, 3},
-		TextureID: texID,
-		BlendMode: blend,
-		Filter:    filter,
-		ShaderID:  0, // default sprite shader
+		Indices:          []uint16{0, 1, 2, 0, 2, 3},
+		TextureID:        texID,
+		BlendMode:        blend,
+		Filter:           filter,
+		ShaderID:         0, // default sprite shader
+		TargetID:         img.textureID,
+		ColorBody:        colorBody,
+		ColorTranslation: colorTrans,
 	})
 }
 
@@ -212,6 +234,8 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 		Filter:    filter,
 		FillRule:  fillRule,
 		ShaderID:  0,
+		TargetID:  img.textureID,
+		ColorBody: colorMatrixIdentityBody,
 	})
 }
 
@@ -245,6 +269,8 @@ func (img *Image) Fill(c fmath.Color) {
 		TextureID: texID,
 		BlendMode: backend.BlendSourceOver,
 		ShaderID:  0,
+		TargetID:  img.textureID,
+		ColorBody: colorMatrixIdentityBody,
 	})
 }
 
@@ -282,6 +308,27 @@ func (img *Image) SubImage(r fmath.Rect) *Image {
 	}
 }
 
+// Clear resets all pixels to transparent black (0, 0, 0, 0).
+// This is equivalent to ebiten.Image.Clear.
+func (img *Image) Clear() {
+	img.Fill(fmath.Color{R: 0, G: 0, B: 0, A: 0})
+}
+
+// ReadPixels reads RGBA pixel data from the image into dst.
+// dst must be at least 4*width*height bytes.
+func (img *Image) ReadPixels(dst []byte) {
+	if img.disposed || img.texture == nil {
+		return
+	}
+	img.texture.ReadPixels(dst)
+}
+
+// RenderTarget returns the backend render target for this image, or nil.
+// This is used internally by the pipeline to bind off-screen FBOs.
+func (img *Image) RenderTarget() backend.RenderTarget {
+	return img.renderTarget
+}
+
 // Dispose releases the image's GPU resources.
 // Sub-images do not release the parent's texture.
 func (img *Image) Dispose() {
@@ -289,9 +336,15 @@ func (img *Image) Dispose() {
 		return
 	}
 	img.disposed = true
-	if img.texture != nil && img.parent == nil {
-		img.texture.Dispose()
-		img.texture = nil
+	if img.parent == nil {
+		if img.renderTarget != nil {
+			img.renderTarget.Dispose()
+			img.renderTarget = nil
+		}
+		if img.texture != nil {
+			img.texture.Dispose()
+			img.texture = nil
+		}
 	}
 }
 
@@ -423,6 +476,8 @@ func (img *Image) DrawRectShader(width, height int, shader *Shader, opts *DrawRe
 		TextureID: texID,
 		BlendMode: blend,
 		ShaderID:  shader.id,
+		TargetID:  img.textureID,
+		ColorBody: colorMatrixIdentityBody,
 	})
 }
 
@@ -473,6 +528,8 @@ func (img *Image) DrawTrianglesShader(vertices []Vertex, indices []uint16, shade
 		BlendMode: blend,
 		FillRule:  fillRule,
 		ShaderID:  shader.id,
+		TargetID:  img.textureID,
+		ColorBody: colorMatrixIdentityBody,
 	})
 }
 
@@ -581,6 +638,35 @@ func ColorFromRGBA(r, g, b, a float64) fmath.Color {
 }
 
 // --- Internal helpers ---
+
+// colorMatrixIdentityBody is the 4x4 identity body for the color matrix.
+var colorMatrixIdentityBody = [16]float32{
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1,
+}
+
+// colorMatrixToUniforms converts a ColorMatrix to body (mat4) and translation
+// (vec4) uniform values. A zero-valued ColorMatrix is treated as identity.
+func colorMatrixToUniforms(cm fmath.ColorMatrix) (body [16]float32, translation [4]float32) {
+	if cm == (fmath.ColorMatrix{}) || cm.IsIdentity() {
+		return colorMatrixIdentityBody, [4]float32{}
+	}
+	// The ColorMatrix is row-major: rows [0..4], [5..9], [10..14], [15..19].
+	// Columns 0-3 are the body, column 4 is translation.
+	// GLSL mat4 is column-major, so we transpose the body.
+	body = [16]float32{
+		float32(cm[0]), float32(cm[5]), float32(cm[10]), float32(cm[15]), // col 0
+		float32(cm[1]), float32(cm[6]), float32(cm[11]), float32(cm[16]), // col 1
+		float32(cm[2]), float32(cm[7]), float32(cm[12]), float32(cm[17]), // col 2
+		float32(cm[3]), float32(cm[8]), float32(cm[13]), float32(cm[18]), // col 3
+	}
+	translation = [4]float32{
+		float32(cm[4]), float32(cm[9]), float32(cm[14]), float32(cm[19]),
+	}
+	return body, translation
+}
 
 // colorScaleOrDefault returns RGBA components from a ColorScale, defaulting
 // to opaque white if the color is zero-valued.

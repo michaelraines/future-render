@@ -258,6 +258,13 @@ func (t *texture) UploadRegion(data []byte, x, y, width, height, level int) {
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
+func (t *texture) ReadPixels(dst []byte) {
+	gl.BindTexture(gl.TEXTURE_2D, t.id)
+	_, format, typ := formatToGL(t.format)
+	gl.GetTexImage(gl.TEXTURE_2D, 0, format, typ, gl.Ptr(dst))
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+}
+
 func (t *texture) Width() int                    { return t.width }
 func (t *texture) Height() int                   { return t.height }
 func (t *texture) Format() backend.TextureFormat { return t.format }

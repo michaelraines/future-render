@@ -20,6 +20,10 @@ type ShaderInfo struct {
 // Returns nil if the shader ID is not registered (use default).
 type ShaderResolver func(shaderID uint32) *ShaderInfo
 
+// RenderTargetResolver maps a target ID to a backend.RenderTarget.
+// Returns nil for the screen target (ID 0).
+type RenderTargetResolver func(targetID uint32) backend.RenderTarget
+
 // SpritePass renders 2D sprite batches. It flushes the batcher, uploads
 // vertex/index data to dynamic GPU buffers, and issues indexed draw calls.
 type SpritePass struct {
@@ -36,6 +40,9 @@ type SpritePass struct {
 
 	// ResolveShader maps batch shader IDs to custom shader info.
 	ResolveShader ShaderResolver
+
+	// ResolveRenderTarget maps batch target IDs to render targets.
+	ResolveRenderTarget RenderTargetResolver
 
 	// Projection is the orthographic projection matrix, set each frame.
 	Projection [16]float32
@@ -89,30 +96,38 @@ func NewSpritePass(cfg SpritePassConfig) (*SpritePass, error) {
 func (sp *SpritePass) Name() string { return "sprite" }
 
 // Execute flushes the batcher and renders all batches.
+// Batches are grouped by render target. For each target group, a render pass
+// is begun, all batches are drawn, and the pass is ended.
 func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 	batches := sp.batcher.Flush()
 	if len(batches) == 0 {
 		return
 	}
 
-	// Track which shader is currently bound to minimize state changes.
+	// Track current render target and shader to minimize state changes.
+	currentTargetID := batches[0].TargetID
 	currentShaderID := uint32(0)
 
-	// Set default pipeline and projection uniform.
-	enc.SetPipeline(sp.pipeline)
-	sp.shader.SetUniformMat4("uProjection", sp.Projection)
-	sp.shader.SetUniformInt("uTexture", 0)
+	// Begin the first render pass.
+	sp.beginTargetPass(enc, ctx, currentTargetID)
+	sp.bindDefaultShader(enc)
 
 	for i := range batches {
 		b := &batches[i]
 
+		// Switch render target if needed.
+		if b.TargetID != currentTargetID {
+			enc.EndRenderPass()
+			currentTargetID = b.TargetID
+			currentShaderID = 0
+			sp.beginTargetPass(enc, ctx, currentTargetID)
+			sp.bindDefaultShader(enc)
+		}
+
 		// Switch shader if this batch uses a different one.
 		if b.ShaderID != currentShaderID {
 			if b.ShaderID == 0 {
-				// Switch back to default shader.
-				enc.SetPipeline(sp.pipeline)
-				sp.shader.SetUniformMat4("uProjection", sp.Projection)
-				sp.shader.SetUniformInt("uTexture", 0)
+				sp.bindDefaultShader(enc)
 			} else if sp.ResolveShader != nil {
 				info := sp.ResolveShader(b.ShaderID)
 				if info != nil {
@@ -122,6 +137,10 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 			}
 			currentShaderID = b.ShaderID
 		}
+
+		// Set color matrix uniforms for this batch.
+		sp.shader.SetUniformMat4("uColorBody", b.ColorBody)
+		sp.shader.SetUniformVec4("uColorTranslation", b.ColorTranslation)
 
 		// Upload vertex data.
 		vertexData := vertexSliceToBytes(b.Vertices)
@@ -149,6 +168,47 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 			enc.DrawIndexed(len(b.Indices), 1, 0)
 		}
 	}
+
+	enc.EndRenderPass()
+}
+
+// beginTargetPass starts a render pass for the given target ID.
+func (sp *SpritePass) beginTargetPass(enc backend.CommandEncoder, ctx *PassContext, targetID uint32) {
+	var rt backend.RenderTarget
+	if targetID != 0 && sp.ResolveRenderTarget != nil {
+		rt = sp.ResolveRenderTarget(targetID)
+	}
+
+	loadAction := backend.LoadActionLoad
+	if targetID == 0 {
+		// Screen target clears each frame.
+		loadAction = backend.LoadActionClear
+	}
+
+	enc.BeginRenderPass(backend.RenderPassDescriptor{
+		Target:      rt,
+		ClearColor:  [4]float32{0, 0, 0, 0},
+		LoadAction:  loadAction,
+		StoreAction: backend.StoreActionStore,
+	})
+
+	// Set viewport based on target dimensions.
+	w, h := ctx.FramebufferWidth, ctx.FramebufferHeight
+	if rt != nil {
+		w, h = rt.Width(), rt.Height()
+	}
+	enc.SetViewport(backend.Viewport{
+		X: 0, Y: 0,
+		Width:  w,
+		Height: h,
+	})
+}
+
+// bindDefaultShader sets the default sprite pipeline and projection.
+func (sp *SpritePass) bindDefaultShader(enc backend.CommandEncoder) {
+	enc.SetPipeline(sp.pipeline)
+	sp.shader.SetUniformMat4("uProjection", sp.Projection)
+	sp.shader.SetUniformInt("uTexture", 0)
 }
 
 // drawEvenOdd renders a batch using the even-odd fill rule via stencil.

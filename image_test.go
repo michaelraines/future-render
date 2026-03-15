@@ -23,13 +23,32 @@ type mockTexture struct {
 
 func (t *mockTexture) Upload(_ []byte, _ int)                   {}
 func (t *mockTexture) UploadRegion(_ []byte, _, _, _, _, _ int) {}
-func (t *mockTexture) Width() int                               { return t.w }
-func (t *mockTexture) Height() int                              { return t.h }
-func (t *mockTexture) Format() backend.TextureFormat            { return t.fmt }
-func (t *mockTexture) Dispose()                                 { t.disposed = true }
+func (t *mockTexture) ReadPixels(dst []byte) {
+	for i := range dst {
+		dst[i] = 0xFF
+	}
+}
+func (t *mockTexture) Width() int                    { return t.w }
+func (t *mockTexture) Height() int                   { return t.h }
+func (t *mockTexture) Format() backend.TextureFormat { return t.fmt }
+func (t *mockTexture) Dispose()                      { t.disposed = true }
+
+// mockRenderTarget implements backend.RenderTarget for testing.
+type mockRenderTarget struct {
+	colorTex *mockTexture
+	w, h     int
+	disposed bool
+}
+
+func (rt *mockRenderTarget) ColorTexture() backend.Texture { return rt.colorTex }
+func (rt *mockRenderTarget) DepthTexture() backend.Texture { return nil }
+func (rt *mockRenderTarget) Width() int                    { return rt.w }
+func (rt *mockRenderTarget) Height() int                   { return rt.h }
+func (rt *mockRenderTarget) Dispose()                      { rt.disposed = true }
 
 type mockDevice struct {
-	textures []*mockTexture
+	textures      []*mockTexture
+	renderTargets []*mockRenderTarget
 }
 
 func (d *mockDevice) Init(_ backend.DeviceConfig) error { return nil }
@@ -47,8 +66,10 @@ func (d *mockDevice) NewBuffer(_ backend.BufferDescriptor) (backend.Buffer, erro
 func (d *mockDevice) NewShader(_ backend.ShaderDescriptor) (backend.Shader, error) {
 	return nil, nil
 }
-func (d *mockDevice) NewRenderTarget(_ backend.RenderTargetDescriptor) (backend.RenderTarget, error) {
-	return nil, nil
+func (d *mockDevice) NewRenderTarget(desc backend.RenderTargetDescriptor) (backend.RenderTarget, error) {
+	rt := &mockRenderTarget{w: desc.Width, h: desc.Height}
+	d.renderTargets = append(d.renderTargets, rt)
+	return rt, nil
 }
 func (d *mockDevice) NewPipeline(_ backend.PipelineDescriptor) (backend.Pipeline, error) {
 	return nil, nil
@@ -69,6 +90,7 @@ func withMockRenderer(t *testing.T) (dev *mockDevice, registered map[uint32]back
 		registerTexture: func(id uint32, tex backend.Texture) {
 			registered[id] = tex
 		},
+		registerRenderTarget: func(_ uint32, _ backend.RenderTarget) {},
 	}
 	old := globalRenderer
 	globalRenderer = rend
@@ -774,6 +796,188 @@ func TestNewImageFromImageNoRenderer(t *testing.T) {
 	require.Equal(t, 8, w)
 	require.Equal(t, 8, h)
 	require.Nil(t, img.texture)
+}
+
+// --- Off-screen render target tests ---
+
+func TestNewImageCreatesRenderTarget(t *testing.T) {
+	dev, _ := withMockRenderer(t)
+
+	img := NewImage(128, 64)
+	require.NotNil(t, img.texture)
+	require.NotNil(t, img.renderTarget)
+	require.Len(t, dev.renderTargets, 1)
+	require.Equal(t, 128, dev.renderTargets[0].w)
+	require.Equal(t, 64, dev.renderTargets[0].h)
+}
+
+func TestDisposeReleasesRenderTarget(t *testing.T) {
+	dev, _ := withMockRenderer(t)
+
+	img := NewImage(32, 32)
+	require.NotNil(t, img.renderTarget)
+	rt := dev.renderTargets[0]
+
+	img.Dispose()
+	require.True(t, rt.disposed)
+	require.Nil(t, img.renderTarget)
+}
+
+func TestImageClear(t *testing.T) {
+	b := withBatchRenderer(t, 99)
+
+	img := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	img.Clear()
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	// Clear uses Fill with zero color.
+	v := batches[0].Vertices[0]
+	require.InDelta(t, float32(0), v.R, 1e-6)
+	require.InDelta(t, float32(0), v.A, 1e-6)
+}
+
+func TestImageReadPixels(t *testing.T) {
+	withMockRenderer(t)
+
+	img := NewImage(4, 4)
+	require.NotNil(t, img.texture)
+
+	dst := make([]byte, 4*4*4)
+	img.ReadPixels(dst)
+	// Mock fills with 0xFF.
+	require.Equal(t, byte(0xFF), dst[0])
+}
+
+func TestImageReadPixelsDisposed(t *testing.T) {
+	withMockRenderer(t)
+
+	img := NewImage(4, 4)
+	img.Dispose()
+
+	dst := make([]byte, 4*4*4)
+	img.ReadPixels(dst)
+	// Should be all zeros since no read happened.
+	require.Equal(t, byte(0), dst[0])
+}
+
+func TestImageReadPixelsNoTexture(t *testing.T) {
+	old := globalRenderer
+	globalRenderer = nil
+	defer func() { globalRenderer = old }()
+
+	img := NewImage(4, 4)
+	dst := make([]byte, 4*4*4)
+	// Should not panic.
+	img.ReadPixels(dst)
+}
+
+func TestImageRenderTarget(t *testing.T) {
+	withMockRenderer(t)
+	img := NewImage(64, 64)
+	require.NotNil(t, img.RenderTarget())
+
+	// Screen-like image has no render target.
+	screen := &Image{width: 800, height: 600}
+	require.Nil(t, screen.RenderTarget())
+}
+
+func TestDrawImageSetsTargetID(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 100, height: 100, textureID: 42, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, textureID: 5, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	dst.DrawImage(src, nil)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, uint32(42), batches[0].TargetID)
+}
+
+func TestFillSetsTargetID(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	img := &Image{width: 100, height: 100, textureID: 7, u0: 0, v0: 0, u1: 1, v1: 1}
+	img.Fill(fmath.Color{R: 1, G: 0, B: 0, A: 1})
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, uint32(7), batches[0].TargetID)
+}
+
+func TestScreenImageTargetIDZero(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	// Screen image has textureID 0.
+	screen := &Image{width: 800, height: 600, textureID: 0, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, textureID: 5, u0: 0, v0: 0, u1: 1, v1: 1}
+	screen.DrawImage(src, nil)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, uint32(0), batches[0].TargetID)
+}
+
+func TestDrawImageColorM(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, textureID: 2, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	opts := &DrawImageOptions{
+		ColorM: fmath.ColorMatrixScale(0.5, 1.0, 0.5, 1.0),
+	}
+	dst.DrawImage(src, opts)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	// ColorBody should be a scaled identity.
+	require.InDelta(t, float32(0.5), batches[0].ColorBody[0], 1e-6)  // R scale
+	require.InDelta(t, float32(1.0), batches[0].ColorBody[5], 1e-6)  // G scale
+	require.InDelta(t, float32(0.5), batches[0].ColorBody[10], 1e-6) // B scale
+	require.InDelta(t, float32(1.0), batches[0].ColorBody[15], 1e-6) // A scale
+}
+
+func TestDrawImageDefaultColorM(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, textureID: 2, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	dst.DrawImage(src, nil)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	// Default ColorM should be identity.
+	require.Equal(t, colorMatrixIdentityBody, batches[0].ColorBody)
+	require.Equal(t, [4]float32{}, batches[0].ColorTranslation)
+}
+
+func TestColorMatrixToUniforms(t *testing.T) {
+	// Identity
+	body, trans := colorMatrixToUniforms(fmath.ColorMatrixIdentity())
+	require.Equal(t, colorMatrixIdentityBody, body)
+	require.Equal(t, [4]float32{}, trans)
+
+	// Zero value treated as identity
+	body, trans = colorMatrixToUniforms(fmath.ColorMatrix{})
+	require.Equal(t, colorMatrixIdentityBody, body)
+	require.Equal(t, [4]float32{}, trans)
+
+	// Scale
+	body, trans = colorMatrixToUniforms(fmath.ColorMatrixScale(2, 0.5, 1, 1))
+	require.InDelta(t, float32(2), body[0], 1e-6)
+	require.InDelta(t, float32(0.5), body[5], 1e-6)
+	require.Equal(t, [4]float32{}, trans)
+
+	// Translate
+	body, trans = colorMatrixToUniforms(fmath.ColorMatrixTranslate(0.1, 0.2, 0.3, 0.4))
+	require.Equal(t, colorMatrixIdentityBody, body)
+	require.InDelta(t, float32(0.1), trans[0], 1e-6)
+	require.InDelta(t, float32(0.2), trans[1], 1e-6)
+	require.InDelta(t, float32(0.3), trans[2], 1e-6)
+	require.InDelta(t, float32(0.4), trans[3], 1e-6)
 }
 
 func TestDrawImageSubImage(t *testing.T) {

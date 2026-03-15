@@ -28,6 +28,7 @@ type mockTexture struct {
 
 func (t *mockTexture) Upload(_ []byte, _ int)                   {}
 func (t *mockTexture) UploadRegion(_ []byte, _, _, _, _, _ int) {}
+func (t *mockTexture) ReadPixels(_ []byte)                      {}
 func (t *mockTexture) Width() int                               { return t.w }
 func (t *mockTexture) Height() int                              { return t.h }
 func (t *mockTexture) Format() backend.TextureFormat            { return backend.TextureFormatRGBA8 }
@@ -123,10 +124,12 @@ func (e *mockEncoder) record(method string, args ...interface{}) {
 	e.calls = append(e.calls, encoderCall{Method: method, Args: args})
 }
 
-func (e *mockEncoder) BeginRenderPass(_ backend.RenderPassDescriptor) {}
-func (e *mockEncoder) EndRenderPass()                                 {}
-func (e *mockEncoder) SetPipeline(_ backend.Pipeline)                 { e.record("SetPipeline") }
-func (e *mockEncoder) SetVertexBuffer(_ backend.Buffer, slot int)     { e.record("SetVertexBuffer", slot) }
+func (e *mockEncoder) BeginRenderPass(desc backend.RenderPassDescriptor) {
+	e.record("BeginRenderPass", desc.Target)
+}
+func (e *mockEncoder) EndRenderPass()                             { e.record("EndRenderPass") }
+func (e *mockEncoder) SetPipeline(_ backend.Pipeline)             { e.record("SetPipeline") }
+func (e *mockEncoder) SetVertexBuffer(_ backend.Buffer, slot int) { e.record("SetVertexBuffer", slot) }
 func (e *mockEncoder) SetIndexBuffer(_ backend.Buffer, _ backend.IndexFormat) {
 	e.record("SetIndexBuffer")
 }
@@ -387,6 +390,93 @@ func TestSpritePassNoResolver(t *testing.T) {
 	texCalls := enc.callsByMethod("SetTexture")
 	require.Empty(t, texCalls)
 }
+
+func TestSpritePassRenderTargetSwitch(t *testing.T) {
+	b := batch.NewBatcher(1024, 1024)
+	sp := newTestSpritePass(t, b)
+	sp.ResolveTexture = func(_ uint32) backend.Texture { return &mockTexture{w: 1, h: 1} }
+
+	mockRT := &mockRenderTarget{w: 256, h: 256}
+	sp.ResolveRenderTarget = func(id uint32) backend.RenderTarget {
+		if id == 10 {
+			return mockRT
+		}
+		return nil
+	}
+
+	// Draw to offscreen target (ID 10), then to screen (ID 0).
+	b.Add(batch.DrawCommand{
+		Vertices:  []batch.Vertex2D{{}, {}, {}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		TargetID:  10,
+	})
+	b.Add(batch.DrawCommand{
+		Vertices:  []batch.Vertex2D{{}, {}, {}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		TargetID:  0,
+	})
+
+	enc := &mockEncoder{}
+	sp.Execute(enc, NewPassContext(800, 600))
+
+	// Should have 2 BeginRenderPass calls (screen first due to sort, then offscreen).
+	begins := enc.callsByMethod("BeginRenderPass")
+	require.Len(t, begins, 2)
+	// First pass targets nil (screen, TargetID 0 sorts first).
+	require.Nil(t, begins[0].Args[0])
+	// Second pass targets the mock RT.
+	require.Equal(t, backend.RenderTarget(mockRT), begins[1].Args[0])
+
+	// Should have 2 EndRenderPass calls.
+	ends := enc.callsByMethod("EndRenderPass")
+	require.Len(t, ends, 2)
+
+	// Should have 2 DrawIndexed calls.
+	draws := enc.callsByMethod("DrawIndexed")
+	require.Len(t, draws, 2)
+}
+
+func TestSpritePassSingleTargetOnlyOnePass(t *testing.T) {
+	b := batch.NewBatcher(1024, 1024)
+	sp := newTestSpritePass(t, b)
+	sp.ResolveTexture = func(_ uint32) backend.Texture { return &mockTexture{w: 1, h: 1} }
+
+	// All draws to screen.
+	b.Add(batch.DrawCommand{
+		Vertices:  []batch.Vertex2D{{}, {}, {}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		TargetID:  0,
+	})
+	b.Add(batch.DrawCommand{
+		Vertices:  []batch.Vertex2D{{}, {}, {}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 2,
+		TargetID:  0,
+	})
+
+	enc := &mockEncoder{}
+	sp.Execute(enc, NewPassContext(800, 600))
+
+	// Only 1 render pass.
+	begins := enc.callsByMethod("BeginRenderPass")
+	require.Len(t, begins, 1)
+	ends := enc.callsByMethod("EndRenderPass")
+	require.Len(t, ends, 1)
+}
+
+// mockRenderTarget implements backend.RenderTarget for testing.
+type mockRenderTarget struct {
+	w, h int
+}
+
+func (rt *mockRenderTarget) ColorTexture() backend.Texture { return &mockTexture{w: rt.w, h: rt.h} }
+func (rt *mockRenderTarget) DepthTexture() backend.Texture { return nil }
+func (rt *mockRenderTarget) Width() int                    { return rt.w }
+func (rt *mockRenderTarget) Height() int                   { return rt.h }
+func (rt *mockRenderTarget) Dispose()                      {}
 
 // --- Pipeline struct tests ---
 

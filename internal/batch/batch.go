@@ -40,17 +40,28 @@ type DrawCommand struct {
 	FillRule  backend.FillRule      // fill rule (NonZero or EvenOdd)
 	ShaderID  uint32                // opaque shader identifier for sorting
 	Depth     float32               // sort key for back-to-front or front-to-back ordering
+	TargetID  uint32                // render target identifier (0 = screen)
+
+	// ColorBody is the 4x4 body of the color matrix.
+	// Identity ([16]float32{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1}) means no transform.
+	ColorBody [16]float32
+
+	// ColorTranslation is the 4-element translation of the color matrix.
+	ColorTranslation [4]float32
 }
 
 // Batch represents a group of draw commands that share the same state.
 type Batch struct {
-	Vertices  []Vertex2D
-	Indices   []uint16
-	TextureID uint32
-	BlendMode backend.BlendMode
-	Filter    backend.TextureFilter
-	FillRule  backend.FillRule
-	ShaderID  uint32
+	Vertices         []Vertex2D
+	Indices          []uint16
+	TextureID        uint32
+	BlendMode        backend.BlendMode
+	Filter           backend.TextureFilter
+	FillRule         backend.FillRule
+	ShaderID         uint32
+	TargetID         uint32 // render target identifier (0 = screen)
+	ColorBody        [16]float32
+	ColorTranslation [4]float32
 }
 
 // Batcher accumulates draw commands and produces optimized batches.
@@ -106,9 +117,13 @@ func (b *Batcher) Flush() []Batch {
 		return nil
 	}
 
-	// Sort for optimal batching: group by state
+	// Sort for optimal batching: group by state.
+	// TargetID is first so all draws to the same render target are contiguous.
 	sort.Slice(b.commands, func(i, j int) bool {
 		ci, cj := b.commands[i], b.commands[j]
+		if ci.TargetID != cj.TargetID {
+			return ci.TargetID < cj.TargetID
+		}
 		if ci.ShaderID != cj.ShaderID {
 			return ci.ShaderID < cj.ShaderID
 		}
@@ -135,11 +150,14 @@ func (b *Batcher) Flush() []Batch {
 
 		// Check if we can merge with the current batch
 		canMerge := current != nil &&
+			current.TargetID == cmd.TargetID &&
 			current.TextureID == cmd.TextureID &&
 			current.BlendMode == cmd.BlendMode &&
 			current.Filter == cmd.Filter &&
 			current.FillRule == cmd.FillRule &&
 			current.ShaderID == cmd.ShaderID &&
+			current.ColorBody == cmd.ColorBody &&
+			current.ColorTranslation == cmd.ColorTranslation &&
 			len(current.Vertices)+len(cmd.Vertices) <= b.maxVertices &&
 			len(current.Indices)+len(cmd.Indices) <= b.maxIndices &&
 			len(current.Vertices)+len(cmd.Vertices) <= math.MaxUint16
@@ -154,13 +172,16 @@ func (b *Batcher) Flush() []Batch {
 		} else {
 			// Start a new batch
 			batches = append(batches, Batch{
-				Vertices:  make([]Vertex2D, len(cmd.Vertices)),
-				Indices:   make([]uint16, len(cmd.Indices)),
-				TextureID: cmd.TextureID,
-				BlendMode: cmd.BlendMode,
-				Filter:    cmd.Filter,
-				FillRule:  cmd.FillRule,
-				ShaderID:  cmd.ShaderID,
+				Vertices:         make([]Vertex2D, len(cmd.Vertices)),
+				Indices:          make([]uint16, len(cmd.Indices)),
+				TextureID:        cmd.TextureID,
+				BlendMode:        cmd.BlendMode,
+				Filter:           cmd.Filter,
+				FillRule:         cmd.FillRule,
+				ShaderID:         cmd.ShaderID,
+				TargetID:         cmd.TargetID,
+				ColorBody:        cmd.ColorBody,
+				ColorTranslation: cmd.ColorTranslation,
 			})
 			current = &batches[len(batches)-1]
 			copy(current.Vertices, cmd.Vertices)
