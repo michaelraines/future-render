@@ -324,8 +324,9 @@ suite before it is considered complete.
 
 | Task | Status | Notes |
 |---|---|---|
-| Backend conformance test suite (`internal/backend/soft/device_test.go`) | Done | Tests exercising Device, Texture, Buffer, Shader, Pipeline, CommandEncoder, RenderTarget; 97% coverage |
-| Golden-image snapshot tests | Planned | Render reference scenes, compare output pixel buffers within tolerance |
+| Backend conformance test suite (`internal/backend/soft/device_test.go`) | Done | Tests exercising Device, Texture, Buffer, Shader, Pipeline, CommandEncoder, RenderTarget; 91% coverage |
+| Golden-image snapshot tests (`internal/backend/conformance/`) | Done | 10 reference scenes with PNG golden images; per-pixel RGBA tolerance comparison; diff artifact generation on failure; auto-generates goldens on first run |
+| CPU rasterizer (`internal/backend/soft/rasterizer.go`) | Done | Half-space triangle rasterization, vertex transform (MVP), barycentric interpolation, nearest/linear texture sampling, 5 blend modes, depth test, scissor, color matrix |
 | Software rasterizer (`internal/backend/soft/`) | Done | Pure Go, CPU-only Device impl; headless CI, auto-registers as "soft" backend |
 | `FUTURE_RENDER_BACKEND` env var expansion | Done | Accept `opengl`, `webgl`, `vulkan`, `metal`, `webgpu`, `dx12`, `soft`, `auto` |
 | Backend registry + factory | Done | `internal/backend/registry.go` — `Register(name, factory)`, `Create(name) (Device, error)`; build tags control compiled backends |
