@@ -308,36 +308,131 @@ pipeline 90.6%, batch 97.5%.
 
 ---
 
-## Milestone 9 — WebGL + Vulkan Backends (Planned)
+## Milestone 9 — Multi-Backend Support (Planned)
 
-Goal: WebGL and Vulkan are required compatibility targets alongside OpenGL.
-All three backends must pass the same integration test suite.
+Goal: ship all planned GPU backends — WebGL2, Vulkan, Metal, WebGPU, and
+DirectX 12 — alongside the existing OpenGL 3.3 backend. Every backend
+implements the same `backend.Device` / `CommandEncoder` interface and must
+pass a shared conformance test suite. A software rasterizer provides headless
+CI coverage for backend-agnostic logic.
 
-| Task | Status | Notes |
-|---|---|---|
-| WebGL2 backend (`internal/backend/webgl/`) | Planned | WASM target, GOOS=js GOARCH=wasm |
-| WebGL2 platform shim (canvas, requestAnimationFrame) | Planned | `internal/platform/web/` |
-| Vulkan backend (`internal/backend/vulkan/`) | Planned | Linux/Windows/Android |
-| Vulkan platform integration (surface creation) | Planned | GLFW Vulkan surface support |
-| Backend conformance test suite | Planned | Shared tests all 3 backends must pass |
-| `FUTURE_RENDER_BACKEND` runtime selection (opengl/webgl/vulkan/auto) | Planned | Auto-detect based on platform |
-| Software rasterizer (testing) | Planned | Headless CI fallback |
+### 9a — Backend Conformance Infrastructure (Planned)
 
----
-
-## Milestone 10 — Additional Backends (Future)
-
-Goal: Metal, WebGPU, and other platform-specific backends.
+Shared test harness that validates any `backend.Device` implementation against
+a canonical set of operations. Every subsequent backend phase must pass this
+suite before it is considered complete.
 
 | Task | Status | Notes |
 |---|---|---|
-| Metal backend (`internal/backend/metal/`) | Future | macOS/iOS |
-| WebGPU backend | Future | Modern web, successor to WebGL path |
-| DirectX 12 backend | Future | Windows |
+| Backend conformance test suite (`internal/backend/conformance/`) | Planned | Table-driven tests exercising Device, Texture, Buffer, Shader, Pipeline, CommandEncoder, RenderTarget |
+| Golden-image snapshot tests | Planned | Render reference scenes, compare output pixel buffers within tolerance |
+| Software rasterizer (`internal/backend/soft/`) | Planned | Pure Go, CPU-only Device impl; headless CI fallback, conformance reference |
+| `FUTURE_RENDER_BACKEND` env var expansion | Planned | Accept `opengl`, `webgl`, `vulkan`, `metal`, `webgpu`, `dx12`, `soft`, `auto`; `auto` selects best available per platform |
+| Backend registry + factory | Planned | `internal/backend/registry.go` — `Register(name, factory)`, `Create(name) (Device, error)` pattern; build tags control which backends are compiled in |
+
+### 9b — WebGL2 Backend (Planned)
+
+WASM target for browsers. Replaces GLFW windowing with a canvas-based
+platform shim. Shader source is GLSL ES 3.00 (auto-translated from the
+engine's GLSL 330 core via a lightweight source rewriter).
+
+| Task | Status | Notes |
+|---|---|---|
+| WebGL2 device (`internal/backend/webgl/`) | Planned | `syscall/js` bindings to WebGL2 API, `GOOS=js GOARCH=wasm` |
+| GLSL 330 → GLSL ES 3.00 shader translator | Planned | String-level rewrite: version directive, precision qualifiers, in/out keywords |
+| Web platform shim (`internal/platform/web/`) | Planned | `<canvas>` element, `requestAnimationFrame` loop, DOM event → `InputHandler` dispatch |
+| Touch and pointer event mapping | Planned | PointerEvent → TouchEvent/MouseEvent unification |
+| WASM build tag (`//go:build wasm`) | Planned | Gates web-specific code; `engine_wasm.go` entry point |
+| `cmd/wasm/main.go` example + HTML harness | Planned | Embedded sprite demo, served by `go run` dev server |
+
+### 9c — Vulkan Backend (Planned)
+
+Modern low-overhead backend for Linux, Windows, and Android. Uses purego
+for dynamic loading of `libvulkan` (no CGo). The GLFW window already supports
+Vulkan surface creation via `glfwCreateWindowSurface`.
+
+| Task | Status | Notes |
+|---|---|---|
+| Vulkan loader (`internal/vk/`) | Planned | purego dynamic loader for `vkCreateInstance`, `vkCreateDevice`, etc. |
+| Vulkan device (`internal/backend/vulkan/`) | Planned | Instance, physical/logical device, queue selection, Device interface impl |
+| Swapchain management | Planned | Acquire/present cycle, resize handling, VSync via present mode |
+| Vulkan memory allocator | Planned | Simple sub-allocator for buffers/images; host-visible + device-local pools |
+| SPIR-V shader compilation | Planned | Embed `glslang` or use offline SPIR-V; ShaderDescriptor accepts SPIR-V blobs alongside GLSL |
+| Vulkan render pass + framebuffer | Planned | Map `RenderPassDescriptor` → `VkRenderPass` + `VkFramebuffer` |
+| Vulkan pipeline state objects | Planned | Map `PipelineDescriptor` → `VkGraphicsPipeline`; pipeline cache |
+| Vulkan command buffers | Planned | `CommandEncoder` wraps `VkCommandBuffer` recording |
+| GLFW Vulkan surface integration | Planned | `glfwCreateWindowSurface` via purego; surface passed to swapchain |
+| Validation layers (debug mode) | Planned | `VK_LAYER_KHRONOS_validation` enabled when `DeviceConfig.Debug` is true |
+| Build tag `//go:build vulkan` | Planned | Separate from `glfw` tag; `engine_vulkan.go` |
+
+### 9d — Metal Backend (Planned)
+
+macOS/iOS backend using Apple's Metal API. Uses purego + Objective-C runtime
+for zero-CGo Metal access.
+
+| Task | Status | Notes |
+|---|---|---|
+| Metal loader (`internal/mtl/`) | Planned | purego bindings to Metal framework via `objc_msgSend` |
+| Metal device (`internal/backend/metal/`) | Planned | `MTLDevice`, command queue, Device interface impl |
+| CAMetalLayer + drawable management | Planned | Present via `nextDrawable`, resize via layer bounds |
+| Metal shader compilation | Planned | MSL source compiled via `newLibraryWithSource:`; GLSL → MSL cross-compilation via SPIRV-Cross or source rewriter |
+| Metal render pipeline state | Planned | Map `PipelineDescriptor` → `MTLRenderPipelineState` |
+| Metal command encoder | Planned | `CommandEncoder` wraps `MTLRenderCommandEncoder` |
+| macOS platform integration (`internal/platform/cocoa/`) | Planned | NSWindow + NSView via purego; alternative to GLFW on macOS |
+| Build tag `//go:build darwin` | Planned | Metal available only on Apple platforms |
+
+### 9e — WebGPU Backend (Planned)
+
+Next-generation cross-platform GPU API. WebGPU runs natively (via Dawn/wgpu)
+and in browsers (via the WebGPU JS API), making it a unifying backend for
+both desktop and web targets.
+
+| Task | Status | Notes |
+|---|---|---|
+| wgpu-native loader (`internal/wgpu/`) | Planned | purego bindings to `wgpu-native` (Rust wgpu C API), no CGo |
+| WebGPU device (`internal/backend/webgpu/`) | Planned | Adapter → Device → Queue; Device interface impl |
+| WebGPU swapchain / surface | Planned | `wgpu::Surface` for native; `GPUCanvasContext` for browser |
+| WGSL shader compilation | Planned | GLSL → WGSL transpilation via Naga or Tint; `ShaderDescriptor` extended with `WGSLSource` field |
+| WebGPU render pipeline | Planned | Map `PipelineDescriptor` → `GPURenderPipeline`; vertex buffer layouts from `VertexFormat` |
+| WebGPU command encoder | Planned | `CommandEncoder` wraps `GPUCommandEncoder` → `GPURenderPassEncoder` |
+| WebGPU bind groups + uniforms | Planned | Map uniform setters to bind group entries; layout auto-derived from shader reflection |
+| WebGPU texture + buffer | Planned | `GPUTexture`, `GPUBuffer` wrappers implementing `Texture` / `Buffer` interfaces |
+| Browser WebGPU path (`//go:build js`) | Planned | `syscall/js` bindings to `navigator.gpu`; shares `webgpu` package logic via interfaces |
+| Native WebGPU path (`//go:build !js`) | Planned | Links `wgpu-native` via purego; desktop Linux/Windows/macOS |
+| Build tag `//go:build webgpu` | Planned | Gates wgpu-native dependency on desktop; browser path auto-selected with `GOOS=js` |
+
+### 9f — DirectX 12 Backend (Planned)
+
+Windows-only backend using DirectX 12 for best native performance on Windows.
+
+| Task | Status | Notes |
+|---|---|---|
+| D3D12 loader (`internal/dx12/`) | Planned | purego bindings to `d3d12.dll`, `dxgi.dll` via COM vtable calls |
+| DirectX 12 device (`internal/backend/dx12/`) | Planned | DXGI adapter → D3D12 device + command queue; Device interface impl |
+| DXGI swap chain | Planned | `IDXGISwapChain4`, resize handling, present with VSync |
+| HLSL shader compilation | Planned | GLSL → HLSL cross-compilation (SPIRV-Cross or DXC); `ShaderDescriptor` extended with `HLSLSource` |
+| D3D12 root signature + PSO | Planned | Map `PipelineDescriptor` → `ID3D12PipelineState`; root signature from shader reflection |
+| D3D12 command list | Planned | `CommandEncoder` wraps `ID3D12GraphicsCommandList` |
+| D3D12 descriptor heaps | Planned | CBV/SRV/UAV and sampler heaps for texture/uniform binding |
+| D3D12 resource management | Planned | Committed resources + upload heaps; fence-based lifetime tracking |
+| Win32 platform integration (`internal/platform/win32/`) | Planned | HWND creation via purego; alternative to GLFW on Windows |
+| Build tag `//go:build windows && dx12` | Planned | Windows-only |
+
+### 9g — Integration + Polish (Planned)
+
+Cross-backend validation, auto-detection, and documentation.
+
+| Task | Status | Notes |
+|---|---|---|
+| All backends pass conformance suite | Planned | Green CI for each backend target |
+| Auto-detection logic in `backend.Create("auto")` | Planned | Platform-aware: macOS→Metal, Windows→DX12 or Vulkan, Linux→Vulkan, browser→WebGPU→WebGL2, fallback→OpenGL |
+| `cmd/backends/main.go` example | Planned | Lists available backends, creates device with each, reports capabilities |
+| Backend comparison documentation | Planned | Feature matrix: which backends support which capabilities, platform availability |
+| CI matrix expansion | Planned | GitHub Actions: Linux (OpenGL+Vulkan+soft), macOS (Metal+OpenGL), Windows (DX12+Vulkan+OpenGL), WASM (WebGL2+WebGPU) |
 
 ---
 
-## Milestone 11 — 3D Rendering (Future)
+## Milestone 10 — 3D Rendering (Future)
 
 Goal: 3D mesh rendering, lighting, materials — as described in FUTURE_3D.md.
 
