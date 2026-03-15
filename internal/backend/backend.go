@@ -234,6 +234,10 @@ type CommandEncoder interface {
 	// SetTexture binds a texture to a texture slot.
 	SetTexture(tex Texture, slot int)
 
+	// SetTextureFilter overrides the texture filter for a texture slot.
+	// This uses sampler objects to decouple filter state from the texture.
+	SetTextureFilter(slot int, filter TextureFilter)
+
 	// SetViewport sets the rendering viewport.
 	SetViewport(vp Viewport)
 

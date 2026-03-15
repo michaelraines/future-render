@@ -10,7 +10,12 @@ import (
 )
 
 // commandEncoder implements backend.CommandEncoder for OpenGL.
-type commandEncoder struct{}
+type commandEncoder struct {
+	// Cached sampler objects: one per TextureFilter value.
+	samplerNearest uint32
+	samplerLinear  uint32
+	samplersReady  bool
+}
 
 // BeginRenderPass begins a render pass.
 func (e *commandEncoder) BeginRenderPass(desc backend.RenderPassDescriptor) {
@@ -94,6 +99,36 @@ func (e *commandEncoder) SetTexture(tex backend.Texture, slot int) {
 	t := tex.(*texture)
 	gl.ActiveTexture(uint32(gl.TEXTURE0 + slot))
 	gl.BindTexture(gl.TEXTURE_2D, t.id)
+}
+
+// SetTextureFilter overrides the texture filter for the given slot using
+// a GL sampler object, decoupling filter state from the texture object.
+func (e *commandEncoder) SetTextureFilter(slot int, filter backend.TextureFilter) {
+	e.ensureSamplers()
+	var sampler uint32
+	switch filter {
+	case backend.FilterLinear:
+		sampler = e.samplerLinear
+	default:
+		sampler = e.samplerNearest
+	}
+	gl.BindSampler(uint32(slot), sampler)
+}
+
+// ensureSamplers lazily creates the cached sampler objects.
+func (e *commandEncoder) ensureSamplers() {
+	if e.samplersReady {
+		return
+	}
+	gl.GenSamplers(1, &e.samplerNearest)
+	gl.SamplerParameteri(e.samplerNearest, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.SamplerParameteri(e.samplerNearest, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+
+	gl.GenSamplers(1, &e.samplerLinear)
+	gl.SamplerParameteri(e.samplerLinear, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.SamplerParameteri(e.samplerLinear, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+
+	e.samplersReady = true
 }
 
 // SetViewport sets the rendering viewport.

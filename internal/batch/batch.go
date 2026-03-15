@@ -36,8 +36,9 @@ type DrawCommand struct {
 	Indices   []uint16
 	TextureID uint32 // opaque texture identifier for sorting
 	BlendMode backend.BlendMode
-	ShaderID  uint32  // opaque shader identifier for sorting
-	Depth     float32 // sort key for back-to-front or front-to-back ordering
+	Filter    backend.TextureFilter // texture filter (nearest or linear)
+	ShaderID  uint32                // opaque shader identifier for sorting
+	Depth     float32               // sort key for back-to-front or front-to-back ordering
 }
 
 // Batch represents a group of draw commands that share the same state.
@@ -46,6 +47,7 @@ type Batch struct {
 	Indices   []uint16
 	TextureID uint32
 	BlendMode backend.BlendMode
+	Filter    backend.TextureFilter
 	ShaderID  uint32
 }
 
@@ -111,6 +113,9 @@ func (b *Batcher) Flush() []Batch {
 		if ci.BlendMode != cj.BlendMode {
 			return ci.BlendMode < cj.BlendMode
 		}
+		if ci.Filter != cj.Filter {
+			return ci.Filter < cj.Filter
+		}
 		if ci.TextureID != cj.TextureID {
 			return ci.TextureID < cj.TextureID
 		}
@@ -127,6 +132,7 @@ func (b *Batcher) Flush() []Batch {
 		canMerge := current != nil &&
 			current.TextureID == cmd.TextureID &&
 			current.BlendMode == cmd.BlendMode &&
+			current.Filter == cmd.Filter &&
 			current.ShaderID == cmd.ShaderID &&
 			len(current.Vertices)+len(cmd.Vertices) <= b.maxVertices &&
 			len(current.Indices)+len(cmd.Indices) <= b.maxIndices &&
@@ -146,6 +152,7 @@ func (b *Batcher) Flush() []Batch {
 				Indices:   make([]uint16, len(cmd.Indices)),
 				TextureID: cmd.TextureID,
 				BlendMode: cmd.BlendMode,
+				Filter:    cmd.Filter,
 				ShaderID:  cmd.ShaderID,
 			})
 			current = &batches[len(batches)-1]

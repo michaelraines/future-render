@@ -184,6 +184,11 @@ var (
 	fnDrawElementsInstanced func(mode uint32, count int32, typ uint32, indices uintptr, instancecount int32)
 
 	fnFlush func()
+
+	fnGenSamplers       func(n int32, samplers *uint32)
+	fnDeleteSamplers    func(n int32, samplers *uint32)
+	fnBindSampler       func(unit, sampler uint32)
+	fnSamplerParameteri func(sampler, pname uint32, param int32)
 )
 
 // lib holds the loaded OpenGL library handle.
@@ -318,6 +323,13 @@ func DrawElementsInstanced(mode uint32, count int32, typ uint32, indices unsafe.
 }
 
 func Flush() { fnFlush() }
+
+func GenSamplers(n int32, samplers *uint32)    { fnGenSamplers(n, samplers) }
+func DeleteSamplers(n int32, samplers *uint32) { fnDeleteSamplers(n, samplers) }
+func BindSampler(unit, sampler uint32)         { fnBindSampler(unit, sampler) }
+func SamplerParameteri(sampler, pname uint32, param int32) {
+	fnSamplerParameteri(sampler, pname, param)
+}
 
 // ---------------------------------------------------------------------------
 // String helpers — replace go-gl/gl utility functions
@@ -511,6 +523,10 @@ func Init() error {
 		{&fnCheckFramebufferStatus, "glCheckFramebufferStatus"},
 		{&fnDrawArraysInstanced, "glDrawArraysInstanced"},
 		{&fnDrawElementsInstanced, "glDrawElementsInstanced"},
+		{&fnGenSamplers, "glGenSamplers"},
+		{&fnDeleteSamplers, "glDeleteSamplers"},
+		{&fnBindSampler, "glBindSampler"},
+		{&fnSamplerParameteri, "glSamplerParameteri"},
 	} {
 		if ferr := must(e.fn, e.name); ferr != nil {
 			return ferr

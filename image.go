@@ -146,8 +146,9 @@ func (img *Image) DrawImage(src *Image, opts *DrawImageOptions) {
 		texID = globalRenderer.whiteTextureID
 	}
 
-	// Map public blend mode to backend blend mode.
+	// Map public blend mode and filter to backend types.
 	blend := blendToBackend(o.Blend)
+	filter := filterToBackend(o.Filter)
 
 	globalRenderer.batcher.Add(batch.DrawCommand{
 		Vertices: []batch.Vertex2D{
@@ -159,6 +160,7 @@ func (img *Image) DrawImage(src *Image, opts *DrawImageOptions) {
 		Indices:   []uint16{0, 1, 2, 0, 2, 3},
 		TextureID: texID,
 		BlendMode: blend,
+		Filter:    filter,
 		ShaderID:  0, // default sprite shader
 	})
 }
@@ -190,11 +192,13 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 
 	texID := uint32(0)
 	blend := backend.BlendSourceOver
+	filter := backend.FilterNearest
 	if src != nil {
 		texID = src.textureID
 	}
 	if opts != nil {
 		blend = blendToBackend(opts.Blend)
+		filter = filterToBackend(opts.Filter)
 	}
 
 	globalRenderer.batcher.Add(batch.DrawCommand{
@@ -202,6 +206,7 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 		Indices:   indices,
 		TextureID: texID,
 		BlendMode: blend,
+		Filter:    filter,
 		ShaderID:  0,
 	})
 }
@@ -440,5 +445,15 @@ func blendToBackend(b BlendMode) backend.BlendMode {
 		return backend.BlendMultiplicative
 	default:
 		return backend.BlendSourceOver
+	}
+}
+
+// filterToBackend maps a public Filter to a backend TextureFilter.
+func filterToBackend(f Filter) backend.TextureFilter {
+	switch f {
+	case FilterLinear:
+		return backend.FilterLinear
+	default:
+		return backend.FilterNearest
 	}
 }

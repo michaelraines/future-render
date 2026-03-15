@@ -42,6 +42,56 @@ func TestBatcherBlendModeSplit(t *testing.T) {
 	require.Len(t, batches, 2)
 }
 
+func TestBatcherFilterSplit(t *testing.T) {
+	b := NewBatcher(65535, 65535)
+
+	// Same texture but different filters should produce separate batches
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 0, PosY: 0}, {PosX: 10, PosY: 0}, {PosX: 10, PosY: 10}, {PosX: 0, PosY: 10}},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		Filter:    backend.FilterNearest,
+	})
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 20, PosY: 0}, {PosX: 30, PosY: 0}, {PosX: 30, PosY: 10}, {PosX: 20, PosY: 10}},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		Filter:    backend.FilterLinear,
+	})
+
+	batches := b.Flush()
+	require.Len(t, batches, 2)
+	require.Equal(t, backend.FilterNearest, batches[0].Filter)
+	require.Equal(t, backend.FilterLinear, batches[1].Filter)
+}
+
+func TestBatcherFilterMerge(t *testing.T) {
+	b := NewBatcher(65535, 65535)
+
+	// Same texture and same filter should merge
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 0, PosY: 0}, {PosX: 10, PosY: 0}, {PosX: 10, PosY: 10}, {PosX: 0, PosY: 10}},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		Filter:    backend.FilterLinear,
+	})
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 20, PosY: 0}, {PosX: 30, PosY: 0}, {PosX: 30, PosY: 10}, {PosX: 20, PosY: 10}},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		Filter:    backend.FilterLinear,
+	})
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, backend.FilterLinear, batches[0].Filter)
+	require.Len(t, batches[0].Vertices, 8)
+}
+
 func TestBatcherReset(t *testing.T) {
 	b := NewBatcher(65535, 65535)
 	b.AddQuad(0, 0, 10, 10, 0, 0, 1, 1, 1, 1, 1, 1, 1, backend.BlendSourceOver, 0)

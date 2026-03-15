@@ -100,13 +100,14 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 		sp.indexBuf.Upload(indexData)
 		enc.SetIndexBuffer(sp.indexBuf, backend.IndexUint16)
 
-		// Bind texture.
+		// Bind texture and set per-draw filter via sampler object.
 		if sp.ResolveTexture != nil {
 			tex := sp.ResolveTexture(b.TextureID)
 			if tex != nil {
 				enc.SetTexture(tex, 0)
 			}
 		}
+		enc.SetTextureFilter(0, b.Filter)
 
 		// Draw.
 		enc.DrawIndexed(len(b.Indices), 1, 0)

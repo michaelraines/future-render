@@ -60,7 +60,7 @@ responds to Escape key.
 
 ---
 
-## Milestone 2 — Image Rendering (In Progress)
+## Milestone 2 — Image Rendering (Done)
 
 Goal: draw an image to the screen with transforms. This validates the full
 Image → Batcher → Pipeline → GPU path end to end.
@@ -106,7 +106,7 @@ Connect `Image.DrawImage()` through the batcher to actual draw calls.
 |---|---|---|
 | `DrawImageOptions` — ColorScale applied to vertex color | Done | Zero-value defaults to white |
 | `DrawImageOptions` — BlendMode mapped to backend blend | Done | `blendToBackend()` |
-| `DrawImageOptions` — Filter sets texture sampling | Planned | Needs per-draw filter switching |
+| `DrawImageOptions` — Filter sets texture sampling | Done | GL sampler objects, per-draw filter via `SetTextureFilter` |
 | `Image.SubImage()` with correct UV mapping | Done | Nested sub-images resolve to root |
 
 ### Phase 2e — Example + validation ✓
@@ -119,8 +119,8 @@ Connect `Image.DrawImage()` through the batcher to actual draw calls.
 **Exit criteria**: a PNG sprite renders on screen with scale, rotation, and
 alpha blending.
 
-**Remaining**: Per-draw texture filter switching (FilterNearest vs FilterLinear)
-is deferred — requires re-binding texture with different GL sampler params.
+**Completed**: All Phase 2 tasks done, including per-draw texture filter
+switching via GL sampler objects.
 
 ---
 
