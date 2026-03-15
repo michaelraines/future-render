@@ -2,7 +2,11 @@
 
 package futurerender
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/michaelraines/future-render/internal/input"
+)
 
 type engine struct {
 	game        Game
@@ -11,6 +15,7 @@ type engine struct {
 	windowTitle string
 	windowW     int
 	windowH     int
+	inputState  *input.State
 }
 
 func newPlatformEngine(game Game) *engine {

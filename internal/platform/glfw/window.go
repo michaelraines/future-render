@@ -26,6 +26,10 @@ type Window struct {
 	savedX, savedY int
 	savedW, savedH int
 
+	// Cursor tracking for delta computation.
+	prevCursorX, prevCursorY float64
+	hasPrevCursor            bool
+
 	// Prevent callback pointers from being GC'd.
 	keyCB         uintptr
 	mouseButtonCB uintptr
@@ -248,8 +252,16 @@ func (w *Window) installCallbacks() {
 		if win == nil || win.handler == nil {
 			return
 		}
+		var dx, dy float64
+		if win.hasPrevCursor {
+			dx = x - win.prevCursorX
+			dy = y - win.prevCursorY
+		}
+		win.prevCursorX = x
+		win.prevCursorY = y
+		win.hasPrevCursor = true
 		win.handler.OnMouseMoveEvent(platform.MouseMoveEvent{
-			X: x, Y: y,
+			X: x, Y: y, DX: dx, DY: dy,
 		})
 	})
 	fnGlfwSetCursorPosCallback(w.win, w.cursorPosCB)
