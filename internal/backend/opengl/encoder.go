@@ -131,6 +131,23 @@ func (e *commandEncoder) ensureSamplers() {
 	e.samplersReady = true
 }
 
+// SetStencil configures and enables/disables the stencil test.
+func (e *commandEncoder) SetStencil(enabled bool, desc backend.StencilDescriptor) {
+	if !enabled {
+		gl.Disable(gl.STENCIL_TEST)
+		return
+	}
+	gl.Enable(gl.STENCIL_TEST)
+	gl.StencilFunc(compareFuncToGL(desc.Func), int32(desc.Ref), desc.Mask)
+	gl.StencilOp(stencilOpToGL(desc.SFail), stencilOpToGL(desc.DPFail), stencilOpToGL(desc.DPPass))
+	gl.StencilMask(desc.WriteMask)
+}
+
+// SetColorWrite enables or disables writing to the color buffer.
+func (e *commandEncoder) SetColorWrite(enabled bool) {
+	gl.ColorMask(enabled, enabled, enabled, enabled)
+}
+
 // SetViewport sets the rendering viewport.
 func (e *commandEncoder) SetViewport(vp backend.Viewport) {
 	gl.Viewport(int32(vp.X), int32(vp.Y), int32(vp.Width), int32(vp.Height))
@@ -220,5 +237,28 @@ func compareFuncToGL(f backend.CompareFunc) uint32 {
 		return gl.ALWAYS
 	default:
 		return gl.LESS
+	}
+}
+
+func stencilOpToGL(op backend.StencilOp) uint32 {
+	switch op {
+	case backend.StencilKeep:
+		return gl.KEEP
+	case backend.StencilZero:
+		return gl.ZERO
+	case backend.StencilReplace:
+		return gl.REPLACE
+	case backend.StencilIncr:
+		return gl.INCR
+	case backend.StencilDecr:
+		return gl.DECR
+	case backend.StencilInvert:
+		return gl.INVERT
+	case backend.StencilIncrWrap:
+		return gl.INCR_WRAP
+	case backend.StencilDecrWrap:
+		return gl.DECR_WRAP
+	default:
+		return gl.KEEP
 	}
 }

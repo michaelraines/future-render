@@ -74,13 +74,15 @@ const (
 	DEPTH_ATTACHMENT     = 0x8D00
 	FRAMEBUFFER_COMPLETE = 0x8CD5
 
-	COLOR_BUFFER_BIT = 0x00004000
-	DEPTH_BUFFER_BIT = 0x00000100
+	COLOR_BUFFER_BIT   = 0x00004000
+	DEPTH_BUFFER_BIT   = 0x00000100
+	STENCIL_BUFFER_BIT = 0x00000400
 
 	BLEND        = 0x0BE2
 	DEPTH_TEST   = 0x0B71
 	SCISSOR_TEST = 0x0C11
 	CULL_FACE    = 0x0B44
+	STENCIL_TEST = 0x0B90
 
 	ZERO                = 0
 	ONE                 = 1
@@ -90,6 +92,15 @@ const (
 
 	FRONT = 0x0404
 	BACK  = 0x0405
+
+	// Stencil operations.
+	KEEP      = 0x1E00
+	REPLACE   = 0x1E01
+	INCR      = 0x1E02
+	DECR      = 0x1E03
+	INVERT    = 0x150A
+	INCR_WRAP = 0x8507
+	DECR_WRAP = 0x8508
 
 	NEVER    = 0x0200
 	LESS     = 0x0201
@@ -185,6 +196,12 @@ var (
 
 	fnFlush func()
 
+	fnStencilFunc  func(fn uint32, ref int32, mask uint32)
+	fnStencilOp    func(sfail, dpfail, dppass uint32)
+	fnStencilMask  func(mask uint32)
+	fnClearStencil func(s int32)
+	fnColorMask    func(r, g, b, a uint8) // GLboolean
+
 	fnGenSamplers       func(n int32, samplers *uint32)
 	fnDeleteSamplers    func(n int32, samplers *uint32)
 	fnBindSampler       func(unit, sampler uint32)
@@ -216,7 +233,20 @@ func DepthMask(flag bool) {
 	fnDepthMask(v)
 }
 
-func CullFace(mode uint32)                            { fnCullFace(mode) }
+func CullFace(mode uint32)                          { fnCullFace(mode) }
+func StencilFunc(fn uint32, ref int32, mask uint32) { fnStencilFunc(fn, ref, mask) }
+func StencilOp(sfail, dpfail, dppass uint32)        { fnStencilOp(sfail, dpfail, dppass) }
+func StencilMask(mask uint32)                       { fnStencilMask(mask) }
+func ClearStencil(s int32)                          { fnClearStencil(s) }
+func ColorMask(r, g, b, a bool)                     { fnColorMask(b2u(r), b2u(g), b2u(b), b2u(a)) }
+
+// b2u converts a bool to a GLboolean (uint8).
+func b2u(v bool) uint8 {
+	if v {
+		return 1
+	}
+	return 0
+}
 func GenTextures(n int32, textures *uint32)           { fnGenTextures(n, textures) }
 func DeleteTextures(n int32, textures *uint32)        { fnDeleteTextures(n, textures) }
 func BindTexture(target, texture uint32)              { fnBindTexture(target, texture) }
@@ -458,6 +488,11 @@ func Init() error {
 		{&fnTexParameteri, "glTexParameteri"},
 		{&fnTexImage2D, "glTexImage2D"},
 		{&fnTexSubImage2D, "glTexSubImage2D"},
+		{&fnStencilFunc, "glStencilFunc"},
+		{&fnStencilOp, "glStencilOp"},
+		{&fnStencilMask, "glStencilMask"},
+		{&fnClearStencil, "glClearStencil"},
+		{&fnColorMask, "glColorMask"},
 		{&fnGetIntegerv, "glGetIntegerv"},
 		{&fnGetString, "glGetString"},
 		{&fnDrawArrays, "glDrawArrays"},

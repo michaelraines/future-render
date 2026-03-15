@@ -671,6 +671,64 @@ func TestDrawTrianglesDefaultFilter(t *testing.T) {
 	require.Equal(t, backend.FilterNearest, batches[0].Filter)
 }
 
+func TestFillRuleToBackend(t *testing.T) {
+	tests := []struct {
+		pub  FillRule
+		want backend.FillRule
+	}{
+		{FillRuleNonZero, backend.FillRuleNonZero},
+		{FillRuleEvenOdd, backend.FillRuleEvenOdd},
+	}
+	for _, tt := range tests {
+		got := fillRuleToBackend(tt.pub)
+		require.Equal(t, tt.want, got)
+	}
+}
+
+func TestFillRuleToBackendUnknown(t *testing.T) {
+	got := fillRuleToBackend(FillRule(999))
+	require.Equal(t, backend.FillRuleNonZero, got)
+}
+
+func TestDrawTrianglesFillRulePassedToBatcher(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 64, height: 64, textureID: 3, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	verts := []Vertex{
+		{DstX: 0, DstY: 0, SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 0, SrcX: 1, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 10, SrcX: 1, SrcY: 1, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+	}
+	indices := []uint16{0, 1, 2}
+
+	opts := &DrawTrianglesOptions{FillRule: FillRuleEvenOdd}
+	dst.DrawTriangles(verts, indices, src, opts)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, backend.FillRuleEvenOdd, batches[0].FillRule)
+}
+
+func TestDrawTrianglesDefaultFillRule(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	verts := []Vertex{
+		{DstX: 0, DstY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 10, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+	}
+	indices := []uint16{0, 1, 2}
+
+	dst.DrawTriangles(verts, indices, nil, nil)
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, backend.FillRuleNonZero, batches[0].FillRule)
+}
+
 func TestNewImageFromImageNoRenderer(t *testing.T) {
 	old := globalRenderer
 	globalRenderer = nil

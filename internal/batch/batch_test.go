@@ -92,6 +92,56 @@ func TestBatcherFilterMerge(t *testing.T) {
 	require.Len(t, batches[0].Vertices, 8)
 }
 
+func TestBatcherFillRuleSplit(t *testing.T) {
+	b := NewBatcher(65535, 65535)
+
+	// Same texture but different fill rules should produce separate batches
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 0, PosY: 0}, {PosX: 10, PosY: 0}, {PosX: 10, PosY: 10}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		FillRule:  backend.FillRuleNonZero,
+	})
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 20, PosY: 0}, {PosX: 30, PosY: 0}, {PosX: 30, PosY: 10}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		FillRule:  backend.FillRuleEvenOdd,
+	})
+
+	batches := b.Flush()
+	require.Len(t, batches, 2)
+	require.Equal(t, backend.FillRuleNonZero, batches[0].FillRule)
+	require.Equal(t, backend.FillRuleEvenOdd, batches[1].FillRule)
+}
+
+func TestBatcherFillRuleMerge(t *testing.T) {
+	b := NewBatcher(65535, 65535)
+
+	// Same fill rule should merge
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 0, PosY: 0}, {PosX: 10, PosY: 0}, {PosX: 10, PosY: 10}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		FillRule:  backend.FillRuleEvenOdd,
+	})
+	b.Add(DrawCommand{
+		Vertices:  []Vertex2D{{PosX: 20, PosY: 0}, {PosX: 30, PosY: 0}, {PosX: 30, PosY: 10}},
+		Indices:   []uint16{0, 1, 2},
+		TextureID: 1,
+		BlendMode: backend.BlendSourceOver,
+		FillRule:  backend.FillRuleEvenOdd,
+	})
+
+	batches := b.Flush()
+	require.Len(t, batches, 1)
+	require.Equal(t, backend.FillRuleEvenOdd, batches[0].FillRule)
+	require.Len(t, batches[0].Vertices, 6)
+}
+
 func TestBatcherReset(t *testing.T) {
 	b := NewBatcher(65535, 65535)
 	b.AddQuad(0, 0, 10, 10, 0, 0, 1, 1, 1, 1, 1, 1, 1, backend.BlendSourceOver, 0)

@@ -109,9 +109,47 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 		}
 		enc.SetTextureFilter(0, b.Filter)
 
-		// Draw.
-		enc.DrawIndexed(len(b.Indices), 1, 0)
+		// Handle fill rule.
+		if b.FillRule == backend.FillRuleEvenOdd {
+			sp.drawEvenOdd(enc, b)
+		} else {
+			enc.DrawIndexed(len(b.Indices), 1, 0)
+		}
 	}
+}
+
+// drawEvenOdd renders a batch using the even-odd fill rule via stencil.
+// Pass 1: draw triangles to stencil only (INVERT), color writes disabled.
+// Pass 2: redraw with stencil test NOTEQUAL 0, then reset stencil state.
+func (sp *SpritePass) drawEvenOdd(enc backend.CommandEncoder, b *batch.Batch) {
+	// Pass 1: write to stencil, no color output.
+	enc.SetColorWrite(false)
+	enc.SetStencil(true, backend.StencilDescriptor{
+		Func:      backend.CompareAlways,
+		Ref:       0,
+		Mask:      0xFF,
+		SFail:     backend.StencilKeep,
+		DPFail:    backend.StencilKeep,
+		DPPass:    backend.StencilInvert,
+		WriteMask: 0xFF,
+	})
+	enc.DrawIndexed(len(b.Indices), 1, 0)
+
+	// Pass 2: draw where stencil != 0.
+	enc.SetColorWrite(true)
+	enc.SetStencil(true, backend.StencilDescriptor{
+		Func:      backend.CompareNotEqual,
+		Ref:       0,
+		Mask:      0xFF,
+		SFail:     backend.StencilKeep,
+		DPFail:    backend.StencilKeep,
+		DPPass:    backend.StencilZero, // clear stencil as we draw
+		WriteMask: 0xFF,
+	})
+	enc.DrawIndexed(len(b.Indices), 1, 0)
+
+	// Disable stencil for subsequent batches.
+	enc.SetStencil(false, backend.StencilDescriptor{})
 }
 
 // Dispose releases the pass's GPU buffers.

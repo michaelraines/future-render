@@ -238,6 +238,12 @@ type CommandEncoder interface {
 	// This uses sampler objects to decouple filter state from the texture.
 	SetTextureFilter(slot int, filter TextureFilter)
 
+	// SetStencil configures and enables/disables the stencil test.
+	SetStencil(enabled bool, desc StencilDescriptor)
+
+	// SetColorWrite enables or disables writing to the color buffer.
+	SetColorWrite(enabled bool)
+
 	// SetViewport sets the rendering viewport.
 	SetViewport(vp Viewport)
 

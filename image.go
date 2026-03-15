@@ -193,12 +193,14 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 	texID := uint32(0)
 	blend := backend.BlendSourceOver
 	filter := backend.FilterNearest
+	fillRule := backend.FillRuleNonZero
 	if src != nil {
 		texID = src.textureID
 	}
 	if opts != nil {
 		blend = blendToBackend(opts.Blend)
 		filter = filterToBackend(opts.Filter)
+		fillRule = fillRuleToBackend(opts.FillRule)
 	}
 
 	globalRenderer.batcher.Add(batch.DrawCommand{
@@ -207,6 +209,7 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 		TextureID: texID,
 		BlendMode: blend,
 		Filter:    filter,
+		FillRule:  fillRule,
 		ShaderID:  0,
 	})
 }
@@ -455,5 +458,15 @@ func filterToBackend(f Filter) backend.TextureFilter {
 		return backend.FilterLinear
 	default:
 		return backend.FilterNearest
+	}
+}
+
+// fillRuleToBackend maps a public FillRule to a backend FillRule.
+func fillRuleToBackend(f FillRule) backend.FillRule {
+	switch f {
+	case FillRuleEvenOdd:
+		return backend.FillRuleEvenOdd
+	default:
+		return backend.FillRuleNonZero
 	}
 }

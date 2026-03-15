@@ -125,6 +125,41 @@ const (
 	WrapMirror
 )
 
+// FillRule specifies how overlapping triangles are composited.
+type FillRule int
+
+// FillRule constants.
+const (
+	FillRuleNonZero FillRule = iota // Default: all fragments drawn
+	FillRuleEvenOdd                 // Odd-overlap regions visible (stencil-based XOR)
+)
+
+// StencilOp specifies what happens to stencil buffer values.
+type StencilOp int
+
+// StencilOp constants.
+const (
+	StencilKeep     StencilOp = iota // Keep current value
+	StencilZero                      // Set to zero
+	StencilReplace                   // Set to reference value
+	StencilIncr                      // Increment (clamp)
+	StencilDecr                      // Decrement (clamp)
+	StencilInvert                    // Bitwise invert
+	StencilIncrWrap                  // Increment (wrap)
+	StencilDecrWrap                  // Decrement (wrap)
+)
+
+// StencilDescriptor describes stencil test configuration.
+type StencilDescriptor struct {
+	Func      CompareFunc
+	Ref       int
+	Mask      uint32
+	SFail     StencilOp // stencil test fails
+	DPFail    StencilOp // depth test fails
+	DPPass    StencilOp // both pass
+	WriteMask uint32
+}
+
 // IndexFormat specifies the data type of index buffer elements.
 type IndexFormat int
 

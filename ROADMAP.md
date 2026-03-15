@@ -124,19 +124,24 @@ switching via GL sampler objects.
 
 ---
 
-## Milestone 3 — DrawTriangles + Custom Geometry (Planned)
+## Milestone 3 — DrawTriangles + Custom Geometry (Done)
 
 Goal: expose the low-level `DrawTriangles` API for custom vertex data.
 
 | Task | Status | Notes |
 |---|---|---|
-| `Image.DrawTriangles()` wired end-to-end | Planned | Vertex + index data → batcher |
-| FillRule support (NonZero, EvenOdd) | Planned | Stencil-based |
-| `DrawTrianglesOptions` — Blend, Filter, FillRule | Planned | |
-| Example: procedural mesh / starfield | Planned | |
+| `Image.DrawTriangles()` wired end-to-end | Done | Vertex + index data → batcher → SpritePass → GPU |
+| FillRule support (NonZero, EvenOdd) | Done | Two-pass stencil: INVERT + NOTEQUAL for EvenOdd |
+| `DrawTrianglesOptions` — Blend, Filter, FillRule | Done | All three wired through batcher |
+| Example: procedural mesh / starfield | Done | `cmd/triangles/main.go` — overlapping triangles demo |
 
 **Exit criteria**: `DrawTriangles` renders custom shapes with correct winding
 and blending.
+
+**Completed**: DrawTriangles with full Blend/Filter/FillRule support. EvenOdd
+uses GL stencil objects (two-pass: INVERT to mark odd-overlap pixels, then
+NOTEQUAL 0 to draw). Added SetStencil/SetColorWrite to CommandEncoder.
+Pipeline test coverage at 98.4%.
 
 ---
 
