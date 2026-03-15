@@ -1,5 +1,6 @@
 # Coverage artifacts
 cover.out
+coverage.out
 coverage.html
 
 # Conformance test diff artifacts
