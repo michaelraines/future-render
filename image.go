@@ -1,6 +1,11 @@
 package futurerender
 
 import (
+	goimage "image"
+	"image/draw"
+
+	"github.com/michaelraines/future-render/internal/backend"
+	"github.com/michaelraines/future-render/internal/batch"
 	fmath "github.com/michaelraines/future-render/math"
 )
 
@@ -11,14 +16,89 @@ import (
 type Image struct {
 	width, height int
 	disposed      bool
+
+	// GPU texture handle (nil for screen images or stub builds).
+	texture   backend.Texture
+	textureID uint32
+
+	// Sub-image UV region within the parent texture.
+	// Full image: u0=0, v0=0, u1=1, v1=1.
+	parent         *Image
+	u0, v0, u1, v1 float32
 }
 
 // NewImage creates a new blank image with the given dimensions.
+// If the rendering backend is initialized, a GPU texture is allocated.
 func NewImage(width, height int) *Image {
-	return &Image{
+	img := &Image{
 		width:  width,
 		height: height,
+		u0:     0, v0: 0,
+		u1: 1, v1: 1,
 	}
+
+	// Allocate GPU texture if a device is available.
+	if globalRenderer != nil && globalRenderer.device != nil {
+		tex, err := globalRenderer.device.NewTexture(backend.TextureDescriptor{
+			Width:  width,
+			Height: height,
+			Format: backend.TextureFormatRGBA8,
+			Filter: backend.FilterNearest,
+			WrapU:  backend.WrapClamp,
+			WrapV:  backend.WrapClamp,
+		})
+		if err == nil {
+			img.texture = tex
+			img.textureID = globalRenderer.allocTextureID()
+			if globalRenderer.registerTexture != nil {
+				globalRenderer.registerTexture(img.textureID, tex)
+			}
+		}
+	}
+
+	return img
+}
+
+// NewImageFromImage creates an Image from a Go image.Image.
+// The pixel data is uploaded to the GPU immediately.
+func NewImageFromImage(src goimage.Image) *Image {
+	bounds := src.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	// Convert to RGBA if needed.
+	rgba, ok := src.(*goimage.RGBA)
+	if !ok {
+		rgba = goimage.NewRGBA(bounds)
+		draw.Draw(rgba, bounds, src, bounds.Min, draw.Src)
+	}
+
+	img := &Image{
+		width:  w,
+		height: h,
+		u0:     0, v0: 0,
+		u1: 1, v1: 1,
+	}
+
+	if globalRenderer != nil && globalRenderer.device != nil {
+		tex, err := globalRenderer.device.NewTexture(backend.TextureDescriptor{
+			Width:  w,
+			Height: h,
+			Format: backend.TextureFormatRGBA8,
+			Filter: backend.FilterNearest,
+			WrapU:  backend.WrapClamp,
+			WrapV:  backend.WrapClamp,
+			Data:   rgba.Pix,
+		})
+		if err == nil {
+			img.texture = tex
+			img.textureID = globalRenderer.allocTextureID()
+			if globalRenderer.registerTexture != nil {
+				globalRenderer.registerTexture(img.textureID, tex)
+			}
+		}
+	}
+
+	return img
 }
 
 // Size returns the image dimensions.
@@ -36,8 +116,51 @@ func (img *Image) DrawImage(src *Image, opts *DrawImageOptions) {
 	if img.disposed || src == nil || src.disposed {
 		return
 	}
-	// Implementation will submit a draw command to the batcher via
-	// the current frame's command list. Placeholder for API shape.
+	if globalRenderer == nil || globalRenderer.batcher == nil {
+		return
+	}
+
+	var o DrawImageOptions
+	if opts != nil {
+		o = *opts
+	}
+
+	// Source dimensions and UV.
+	srcW := float32(src.width)
+	srcH := float32(src.height)
+	u0, v0, u1, v1 := src.u0, src.v0, src.u1, src.v1
+
+	// Apply GeoM to the four corners of the source rect.
+	// Corners in source space: (0,0), (srcW,0), (srcW,srcH), (0,srcH).
+	x0, y0 := o.GeoM.Apply(0, 0)
+	x1, y1 := o.GeoM.Apply(float64(srcW), 0)
+	x2, y2 := o.GeoM.Apply(float64(srcW), float64(srcH))
+	x3, y3 := o.GeoM.Apply(0, float64(srcH))
+
+	// Color scale (default to opaque white).
+	cr, cg, cb, ca := colorScaleOrDefault(o.ColorScale)
+
+	// Determine texture ID: use source texture, or white texture for nil.
+	texID := src.textureID
+	if src.texture == nil {
+		texID = globalRenderer.whiteTextureID
+	}
+
+	// Map public blend mode to backend blend mode.
+	blend := blendToBackend(o.Blend)
+
+	globalRenderer.batcher.Add(batch.DrawCommand{
+		Vertices: []batch.Vertex2D{
+			{PosX: float32(x0), PosY: float32(y0), TexU: u0, TexV: v0, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x1), PosY: float32(y1), TexU: u1, TexV: v0, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x2), PosY: float32(y2), TexU: u1, TexV: v1, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x3), PosY: float32(y3), TexU: u0, TexV: v1, R: cr, G: cg, B: cb, A: ca},
+		},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: texID,
+		BlendMode: blend,
+		ShaderID:  0, // default sprite shader
+	})
 }
 
 // DrawTriangles draws triangles with the given vertices, indices, and options.
@@ -46,7 +169,41 @@ func (img *Image) DrawTriangles(vertices []Vertex, indices []uint16, src *Image,
 	if img.disposed {
 		return
 	}
-	// Implementation will submit vertex/index data to the batcher.
+	if globalRenderer == nil || globalRenderer.batcher == nil {
+		return
+	}
+
+	// Convert public Vertex to batch Vertex2D.
+	batchVerts := make([]batch.Vertex2D, len(vertices))
+	for i, v := range vertices {
+		batchVerts[i] = batch.Vertex2D{
+			PosX: v.DstX,
+			PosY: v.DstY,
+			TexU: v.SrcX,
+			TexV: v.SrcY,
+			R:    v.ColorR,
+			G:    v.ColorG,
+			B:    v.ColorB,
+			A:    v.ColorA,
+		}
+	}
+
+	texID := uint32(0)
+	blend := backend.BlendSourceOver
+	if src != nil {
+		texID = src.textureID
+	}
+	if opts != nil {
+		blend = blendToBackend(opts.Blend)
+	}
+
+	globalRenderer.batcher.Add(batch.DrawCommand{
+		Vertices:  batchVerts,
+		Indices:   indices,
+		TextureID: texID,
+		BlendMode: blend,
+		ShaderID:  0,
+	})
 }
 
 // Fill fills the entire image with the given color.
@@ -54,23 +211,79 @@ func (img *Image) Fill(c fmath.Color) {
 	if img.disposed {
 		return
 	}
-	// Implementation will issue a clear command.
+	if globalRenderer == nil || globalRenderer.batcher == nil {
+		return
+	}
+
+	w := float32(img.width)
+	h := float32(img.height)
+	r := float32(c.R)
+	g := float32(c.G)
+	b := float32(c.B)
+	a := float32(c.A)
+
+	// Use the white texture and multiply by vertex color.
+	texID := globalRenderer.whiteTextureID
+
+	globalRenderer.batcher.Add(batch.DrawCommand{
+		Vertices: []batch.Vertex2D{
+			{PosX: 0, PosY: 0, TexU: 0, TexV: 0, R: r, G: g, B: b, A: a},
+			{PosX: w, PosY: 0, TexU: 1, TexV: 0, R: r, G: g, B: b, A: a},
+			{PosX: w, PosY: h, TexU: 1, TexV: 1, R: r, G: g, B: b, A: a},
+			{PosX: 0, PosY: h, TexU: 0, TexV: 1, R: r, G: g, B: b, A: a},
+		},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: texID,
+		BlendMode: backend.BlendSourceOver,
+		ShaderID:  0,
+	})
 }
 
 // SubImage returns a sub-region of the image for sprite sheet support.
+// The returned Image shares the parent's GPU texture with adjusted UVs.
 func (img *Image) SubImage(r fmath.Rect) *Image {
-	// In the full implementation, this returns an Image that references
-	// the same underlying texture but with UV coordinates mapped to the
-	// sub-region.
+	w := float32(img.width)
+	h := float32(img.height)
+
+	// Map rect coordinates to UV space within this image's UV region.
+	uRange := img.u1 - img.u0
+	vRange := img.v1 - img.v0
+
+	su0 := img.u0 + float32(r.Min.X)/w*uRange
+	sv0 := img.v0 + float32(r.Min.Y)/h*vRange
+	su1 := img.u0 + float32(r.Max.X)/w*uRange
+	sv1 := img.v0 + float32(r.Max.Y)/h*vRange
+
+	// Point to the root texture owner.
+	parent := img
+	if img.parent != nil {
+		parent = img.parent
+	}
+
 	return &Image{
-		width:  int(r.Width()),
-		height: int(r.Height()),
+		width:     int(r.Width()),
+		height:    int(r.Height()),
+		texture:   parent.texture,
+		textureID: parent.textureID,
+		parent:    parent,
+		u0:        su0,
+		v0:        sv0,
+		u1:        su1,
+		v1:        sv1,
 	}
 }
 
 // Dispose releases the image's GPU resources.
+// Sub-images do not release the parent's texture.
 func (img *Image) Dispose() {
+	if img.disposed {
+		return
+	}
 	img.disposed = true
+	if img.texture != nil && img.parent == nil {
+		img.texture.Dispose()
+		img.texture = nil
+	}
 }
 
 // DrawImageOptions holds options for DrawImage.
@@ -123,27 +336,27 @@ func NewGeoM() GeoM {
 
 // Translate adds a translation to the transformation.
 func (g *GeoM) Translate(tx, ty float64) {
-	g.m = fmath.Mat3Translate(tx, ty).Mul(g.m)
+	g.m = fmath.Mat3Translate(tx, ty).Mul(g.mat3())
 }
 
 // Scale adds a scaling to the transformation.
 func (g *GeoM) Scale(sx, sy float64) {
-	g.m = fmath.Mat3Scale(sx, sy).Mul(g.m)
+	g.m = fmath.Mat3Scale(sx, sy).Mul(g.mat3())
 }
 
 // Rotate adds a rotation (radians) to the transformation.
 func (g *GeoM) Rotate(angle float64) {
-	g.m = fmath.Mat3Rotate(angle).Mul(g.m)
+	g.m = fmath.Mat3Rotate(angle).Mul(g.mat3())
 }
 
 // Skew adds a shear/skew to the transformation.
 func (g *GeoM) Skew(sx, sy float64) {
-	g.m = fmath.Mat3Shear(sx, sy).Mul(g.m)
+	g.m = fmath.Mat3Shear(sx, sy).Mul(g.mat3())
 }
 
 // Concat concatenates another GeoM onto this one.
 func (g *GeoM) Concat(other GeoM) {
-	g.m = other.m.Mul(g.m)
+	g.m = other.mat3().Mul(g.mat3())
 }
 
 // Reset resets the GeoM to identity.
@@ -152,13 +365,25 @@ func (g *GeoM) Reset() {
 }
 
 // Apply transforms a point by this GeoM.
+// A zero-valued GeoM acts as the identity transform.
 func (g *GeoM) Apply(x, y float64) (rx, ry float64) {
-	v := g.m.MulVec2(fmath.NewVec2(x, y))
+	m := g.mat3()
+	v := m.MulVec2(fmath.NewVec2(x, y))
 	return v.X, v.Y
 }
 
 // Mat3 returns the underlying 3x3 matrix.
+// A zero-valued GeoM returns the identity matrix.
 func (g *GeoM) Mat3() fmath.Mat3 {
+	return g.mat3()
+}
+
+// mat3 returns the underlying matrix, treating a zero-valued GeoM as identity.
+// This ensures that the default DrawImageOptions{} draws without transformation.
+func (g *GeoM) mat3() fmath.Mat3 {
+	if g.m == (fmath.Mat3{}) {
+		return fmath.Mat3Identity()
+	}
 	return g.m
 }
 
@@ -189,3 +414,31 @@ const (
 	FillRuleNonZero FillRule = iota
 	FillRuleEvenOdd
 )
+
+// ColorFromRGBA creates a Color from float64 RGBA components in [0,1].
+func ColorFromRGBA(r, g, b, a float64) fmath.Color {
+	return fmath.Color{R: r, G: g, B: b, A: a}
+}
+
+// --- Internal helpers ---
+
+// colorScaleOrDefault returns RGBA components from a ColorScale, defaulting
+// to opaque white if the color is zero-valued.
+func colorScaleOrDefault(c fmath.Color) (r, g, b, a float32) {
+	if c.R == 0 && c.G == 0 && c.B == 0 && c.A == 0 {
+		return 1, 1, 1, 1
+	}
+	return float32(c.R), float32(c.G), float32(c.B), float32(c.A)
+}
+
+// blendToBackend maps a public BlendMode to a backend BlendMode.
+func blendToBackend(b BlendMode) backend.BlendMode {
+	switch b {
+	case BlendAdditive:
+		return backend.BlendAdditive
+	case BlendMultiplicative:
+		return backend.BlendMultiplicative
+	default:
+		return backend.BlendSourceOver
+	}
+}

@@ -113,6 +113,27 @@ func TestMat4Translation(t *testing.T) {
 	}
 }
 
+func TestMat4Float32(t *testing.T) {
+	m := Mat4Identity()
+	f := m.Float32()
+	// Diagonal should be 1.0.
+	if f[0] != 1 || f[5] != 1 || f[10] != 1 || f[15] != 1 {
+		t.Errorf("identity Float32 diagonal should be 1, got %v", f)
+	}
+	// Off-diagonal should be 0.
+	if f[1] != 0 || f[4] != 0 {
+		t.Errorf("identity Float32 off-diagonal should be 0, got %v", f)
+	}
+
+	// Verify precision for ortho projection.
+	ortho := Mat4Ortho(0, 800, 600, 0, -1, 1)
+	of := ortho.Float32()
+	// Check that float32 conversion preserves reasonable precision.
+	if of[0] == 0 || of[5] == 0 {
+		t.Errorf("ortho Float32 scale components should be non-zero, got %v", of)
+	}
+}
+
 func BenchmarkMat4Mul(b *testing.B) {
 	a := Mat4Translate(1, 2, 3)
 	c := Mat4RotateZ(0.5)

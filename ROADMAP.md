@@ -60,64 +60,67 @@ responds to Escape key.
 
 ---
 
-## Milestone 2 — Image Rendering (Planned)
+## Milestone 2 — Image Rendering (In Progress)
 
 Goal: draw an image to the screen with transforms. This validates the full
 Image → Batcher → Pipeline → GPU path end to end.
 
-### Phase 2a — GPU texture lifecycle
+### Phase 2a — GPU texture lifecycle ✓
 
 Wire `Image` to an actual GPU texture so that pixel data can be uploaded
 and drawn.
 
 | Task | Status | Notes |
 |---|---|---|
-| Add backend texture handle to `Image` | Planned | Store `backend.Texture` + numeric ID |
-| `Image` creates GPU texture on construction via device | Planned | `NewImage(w,h)` allocates RGBA8 texture |
-| `Image.Dispose()` releases GPU texture | Planned | |
-| Texture creation from `image.RGBA` in OpenGL backend | Planned | Already in Device, verify path |
+| Add backend texture handle to `Image` | Done | `texture backend.Texture` + `textureID uint32` |
+| `Image` creates GPU texture on construction via device | Done | `NewImage`, `NewImageFromImage` |
+| `Image.Dispose()` releases GPU texture | Done | Sub-images skip parent disposal |
+| Texture creation from `image.RGBA` in OpenGL backend | Done | Via `NewImageFromImage` → `Device.NewTexture` |
 
-### Phase 2b — Sprite shader + VAO setup
+### Phase 2b — Sprite shader + VAO setup ✓
 
 The default shader that all 2D sprite drawing uses.
 
 | Task | Status | Notes |
 |---|---|---|
-| Default sprite vertex shader (GLSL 330) | Planned | Accepts Vertex2D layout, applies ortho projection |
-| Default sprite fragment shader (GLSL 330) | Planned | Textured quad × vertex color |
-| VAO setup for Vertex2D layout | Planned | Position (float2), UV (float2), Color (float4) |
-| Orthographic projection matrix from screen dimensions | Planned | Updated each frame from Layout() |
+| Default sprite vertex shader (GLSL 330) | Done | `engine_glfw.go` constants |
+| Default sprite fragment shader (GLSL 330) | Done | `texture() * vColor` |
+| VAO setup for Vertex2D layout | Done | SpritePass binds VBO with Vertex2D format |
+| Orthographic projection matrix from screen dimensions | Done | `Mat4Ortho` + `Float32()` conversion |
 
-### Phase 2c — DrawImage → Batcher → GPU
+### Phase 2c — DrawImage → Batcher → GPU ✓
 
 Connect `Image.DrawImage()` through the batcher to actual draw calls.
 
 | Task | Status | Notes |
 |---|---|---|
-| `Image.DrawImage()` builds quad vertices from GeoM | Planned | 4 verts, 6 indices per sprite |
-| `Image.DrawImage()` submits `DrawCommand` to batcher | Planned | TextureID, ShaderID, BlendMode, Depth |
-| `Image.Fill()` wired to clear or fullscreen quad | Planned | |
-| Sprite render pass: flush batcher → upload VBO/IBO → draw | Planned | Per-frame dynamic buffers |
-| Engine loop: collect draws → flush batcher → execute passes → swap | Planned | Replace current stub draw path |
+| `Image.DrawImage()` builds quad vertices from GeoM | Done | 4 verts, 6 indices per sprite |
+| `Image.DrawImage()` submits `DrawCommand` to batcher | Done | TextureID, ShaderID, BlendMode, Depth |
+| `Image.Fill()` wired to fullscreen quad | Done | Uses white texture × vertex color |
+| Sprite render pass: flush batcher → upload VBO/IBO → draw | Done | `pipeline.SpritePass` |
+| Engine loop: collect draws → flush batcher → execute passes → swap | Done | `engine_glfw.go` render loop |
 
-### Phase 2d — DrawImageOptions + SubImage
-
-| Task | Status | Notes |
-|---|---|---|
-| `DrawImageOptions` — ColorScale applied to vertex color | Planned | |
-| `DrawImageOptions` — BlendMode mapped to backend blend | Planned | |
-| `DrawImageOptions` — Filter sets texture sampling | Planned | Nearest vs Linear |
-| `Image.SubImage()` with correct UV mapping | Planned | Source rect → UV rect |
-
-### Phase 2e — Example + validation
+### Phase 2d — DrawImageOptions + SubImage ✓
 
 | Task | Status | Notes |
 |---|---|---|
-| PNG image loading utility (stdlib `image/png`) | Planned | Helper in root or `asset/` |
-| `cmd/sprite/main.go` example | Planned | Load PNG, draw with scale + rotation |
+| `DrawImageOptions` — ColorScale applied to vertex color | Done | Zero-value defaults to white |
+| `DrawImageOptions` — BlendMode mapped to backend blend | Done | `blendToBackend()` |
+| `DrawImageOptions` — Filter sets texture sampling | Planned | Needs per-draw filter switching |
+| `Image.SubImage()` with correct UV mapping | Done | Nested sub-images resolve to root |
+
+### Phase 2e — Example + validation ✓
+
+| Task | Status | Notes |
+|---|---|---|
+| `NewImageFromImage()` for Go image loading | Done | Converts to RGBA, uploads to GPU |
+| `cmd/sprite/main.go` example | Done | Checkerboard sprite, rotation, alpha |
 
 **Exit criteria**: a PNG sprite renders on screen with scale, rotation, and
 alpha blending.
+
+**Remaining**: Per-draw texture filter switching (FilterNearest vs FilterLinear)
+is deferred — requires re-binding texture with different GL sampler params.
 
 ---
 

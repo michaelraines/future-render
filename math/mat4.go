@@ -287,6 +287,16 @@ func (m Mat4) ApproxEqual(other Mat4, epsilon float64) bool {
 	return true
 }
 
+// Float32 returns the matrix as a [16]float32 array, suitable for
+// uploading to GPU shader uniforms.
+func (m Mat4) Float32() [16]float32 {
+	var out [16]float32
+	for i, v := range m {
+		out[i] = float32(v)
+	}
+	return out
+}
+
 // String returns a human-readable representation of m.
 func (m Mat4) String() string {
 	return fmt.Sprintf("Mat4[\n  [%g, %g, %g, %g]\n  [%g, %g, %g, %g]\n  [%g, %g, %g, %g]\n  [%g, %g, %g, %g]\n]",
