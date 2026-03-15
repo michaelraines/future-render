@@ -2,6 +2,9 @@
 cover.out
 coverage.html
 
+# Conformance test diff artifacts
+**/testdata/golden/diff/
+
 # Claude Code local settings (allow skills)
 .claude/*
 !.claude/skills/
