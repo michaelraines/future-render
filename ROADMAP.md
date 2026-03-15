@@ -62,20 +62,59 @@ responds to Escape key.
 
 ## Milestone 2 — Image Rendering (Planned)
 
-Goal: load an image from disk, draw it to the screen with transforms. This
-validates the full Image → Batcher → Pipeline → GPU path.
+Goal: draw an image to the screen with transforms. This validates the full
+Image → Batcher → Pipeline → GPU path end to end.
+
+### Phase 2a — GPU texture lifecycle
+
+Wire `Image` to an actual GPU texture so that pixel data can be uploaded
+and drawn.
 
 | Task | Status | Notes |
 |---|---|---|
-| Texture creation from `image.RGBA` in OpenGL backend | Planned | Upload, bind, dispose |
-| Default sprite shader (vertex + fragment GLSL) | Planned | Textured quad, vertex color multiply |
-| Sprite pass implementation | Planned | Reads batches, issues draw calls |
-| `Image.DrawImage()` wired to batcher | Planned | GeoM → vertex positions, UV from source |
+| Add backend texture handle to `Image` | Planned | Store `backend.Texture` + numeric ID |
+| `Image` creates GPU texture on construction via device | Planned | `NewImage(w,h)` allocates RGBA8 texture |
+| `Image.Dispose()` releases GPU texture | Planned | |
+| Texture creation from `image.RGBA` in OpenGL backend | Planned | Already in Device, verify path |
+
+### Phase 2b — Sprite shader + VAO setup
+
+The default shader that all 2D sprite drawing uses.
+
+| Task | Status | Notes |
+|---|---|---|
+| Default sprite vertex shader (GLSL 330) | Planned | Accepts Vertex2D layout, applies ortho projection |
+| Default sprite fragment shader (GLSL 330) | Planned | Textured quad × vertex color |
+| VAO setup for Vertex2D layout | Planned | Position (float2), UV (float2), Color (float4) |
+| Orthographic projection matrix from screen dimensions | Planned | Updated each frame from Layout() |
+
+### Phase 2c — DrawImage → Batcher → GPU
+
+Connect `Image.DrawImage()` through the batcher to actual draw calls.
+
+| Task | Status | Notes |
+|---|---|---|
+| `Image.DrawImage()` builds quad vertices from GeoM | Planned | 4 verts, 6 indices per sprite |
+| `Image.DrawImage()` submits `DrawCommand` to batcher | Planned | TextureID, ShaderID, BlendMode, Depth |
 | `Image.Fill()` wired to clear or fullscreen quad | Planned | |
-| `Image.SubImage()` with correct UV mapping | Planned | Sprite sheet support |
-| PNG/JPEG image loading utility | Planned | `asset/` package |
-| `DrawImageOptions` — ColorScale, BlendMode, Filter | Planned | |
-| `cmd/sprite/main.go` example | Planned | Load image, draw with rotation |
+| Sprite render pass: flush batcher → upload VBO/IBO → draw | Planned | Per-frame dynamic buffers |
+| Engine loop: collect draws → flush batcher → execute passes → swap | Planned | Replace current stub draw path |
+
+### Phase 2d — DrawImageOptions + SubImage
+
+| Task | Status | Notes |
+|---|---|---|
+| `DrawImageOptions` — ColorScale applied to vertex color | Planned | |
+| `DrawImageOptions` — BlendMode mapped to backend blend | Planned | |
+| `DrawImageOptions` — Filter sets texture sampling | Planned | Nearest vs Linear |
+| `Image.SubImage()` with correct UV mapping | Planned | Source rect → UV rect |
+
+### Phase 2e — Example + validation
+
+| Task | Status | Notes |
+|---|---|---|
+| PNG image loading utility (stdlib `image/png`) | Planned | Helper in root or `asset/` |
+| `cmd/sprite/main.go` example | Planned | Load PNG, draw with scale + rotation |
 
 **Exit criteria**: a PNG sprite renders on screen with scale, rotation, and
 alpha blending.

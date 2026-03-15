@@ -222,8 +222,7 @@ Phase 1 dependencies (all small, auditable):
 | Dependency | Purpose | Justification |
 |---|---|---|
 | Standard library only (Phase 1 core) | Math, sync, time | No external deps for core logic |
-| `gl` (go-gl) | OpenGL bindings | Required for OpenGL backend |
-| `glfw` (go-gl/glfw) | Window/input | Cross-platform windowing |
+| `ebitengine/purego` | C FFI without CGo | Runtime loading of OpenGL and GLFW shared libs |
 
 No dependency on Ebitengine or any of its sub-packages.
 
