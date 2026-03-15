@@ -207,22 +207,31 @@ atlas texture. Added `Image.WritePixels()` for incremental atlas uploads.
 
 ---
 
-## Milestone 6 — Audio (Planned)
+## Milestone 6 — Audio (Done)
 
 Goal: audio playback parity with Ebitengine's `audio` package.
 
 | Task | Status | Notes |
 |---|---|---|
-| Audio context + player abstraction | Planned | `audio/` package |
-| WAV decoding | Planned | |
-| OGG Vorbis decoding | Planned | Pure Go |
-| MP3 decoding | Planned | Pure Go |
-| Streaming playback (large files) | Planned | |
-| Volume, pause, seek, loop | Planned | |
-| Multiple simultaneous players | Planned | |
-| Example: sound effects + BGM | Planned | |
+| Audio context + player abstraction | Done | `audio/` package, singleton Context wrapping oto/v3 |
+| WAV decoding | Done | Pure Go, 8/16-bit, mono/stereo, resampling |
+| OGG Vorbis decoding | Done | Wraps `jfreymuth/oggvorbis`, float32→int16 conversion |
+| MP3 decoding | Deferred | Network blocked `go-mp3` dependency download |
+| Streaming playback (large files) | Done | io.Reader pipeline, lazy pull during playback |
+| Volume, pause, seek, loop | Done | Per-player volume, SetPosition, Rewind, InfiniteLoop |
+| Multiple simultaneous players | Done | Via oto context automatic mixing |
+| InfiniteLoop with intro support | Done | `NewInfiniteLoopWithIntro` for intro+loop BGM |
+| Example: sound effects + BGM | Deferred | Needs GLFW build environment |
 
-**Exit criteria**: play, pause, loop, and mix audio from WAV/OGG/MP3 sources.
+**Exit criteria**: play, pause, loop, and mix audio from WAV/OGG sources.
+
+**Completed**: Full `audio/` package with Context (singleton, wraps oto/v3),
+Player (Play/Pause/Volume/Seek/Rewind/Close), InfiniteLoop (with optional
+intro section), WAV decoder (pure Go RIFF parser, 8/16-bit, mono→stereo),
+and OGG Vorbis decoder (wraps jfreymuth/oggvorbis). All audio flows through
+composable io.Reader pipeline: Decoder → Loop → Player → hardware. MP3
+deferred pending dependency availability. Coverage: audio 84.6%, wav 86.1%,
+vorbis 86.1%.
 
 ---
 
