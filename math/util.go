@@ -51,16 +51,24 @@ func ApproxEqual(a, b, epsilon float64) bool {
 }
 
 // SmoothStep returns a smooth Hermite interpolation between 0 and 1 when
-// edge0 < v < edge1.
+// edge0 < v < edge1. If edge0 == edge1, returns 0.
 func SmoothStep(edge0, edge1, v float64) float64 {
+	if edge0 == edge1 {
+		return 0
+	}
 	t := clamp((v-edge0)/(edge1-edge0), 0, 1)
 	return t * t * (3 - 2*t)
 }
 
 // NextPowerOf2 returns the smallest power of 2 >= n.
+// For n > 2^31, the result wraps to 0 due to uint32 overflow.
+// If n is already a power of 2, it is returned unchanged.
 func NextPowerOf2(n uint32) uint32 {
 	if n == 0 {
 		return 1
+	}
+	if n > (1 << 31) {
+		return 0
 	}
 	n--
 	n |= n >> 1

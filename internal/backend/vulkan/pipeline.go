@@ -7,11 +7,9 @@ import "github.com/michaelraines/future-render/internal/backend"
 // state is baked into an immutable PSO, unlike OpenGL/WebGL2 where state
 // is set imperatively.
 type Pipeline struct {
-	inner backend.Pipeline
-	desc  backend.PipelineDescriptor
+	backend.Pipeline // delegates Dispose to inner
+	desc             backend.PipelineDescriptor
 }
 
-// Dispose releases the pipeline.
-func (p *Pipeline) Dispose() {
-	p.inner.Dispose()
-}
+// InnerPipeline returns the wrapped soft pipeline for encoder unwrapping.
+func (p *Pipeline) InnerPipeline() backend.Pipeline { return p.Pipeline }

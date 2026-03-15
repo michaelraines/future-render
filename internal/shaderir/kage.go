@@ -112,6 +112,11 @@ func (c *compiler) validateFragmentSig(fn *ast.FuncDecl) error {
 	}
 
 	// Extract parameter names for use in transpilation.
+	for i, p := range params.List[:3] {
+		if len(p.Names) == 0 {
+			return fmt.Errorf("shaderir: Fragment parameter %d must have a name", i+1)
+		}
+	}
 	c.fragDstPos = params.List[0].Names[0].Name
 	c.fragSrcPos = params.List[1].Names[0].Name
 	c.fragColor = params.List[2].Names[0].Name
@@ -234,6 +239,10 @@ func (c *compiler) emitImageHelpers(b *strings.Builder) {
 	b.WriteString("}\n\n")
 
 	b.WriteString("vec2 imageDstSize() {\n")
+	b.WriteString("    return uImageDstSize;\n")
+	b.WriteString("}\n\n")
+
+	b.WriteString("vec2 imageDstTextureSize() {\n")
 	b.WriteString("    return uImageDstSize;\n")
 	b.WriteString("}\n\n")
 }
@@ -486,6 +495,14 @@ func (c *compiler) inferType(expr ast.Expr) string {
 		funcName := c.exprString(e.Fun)
 		if IsConstructor(funcName) {
 			return funcName
+		}
+		// Image builtins that sample textures return vec4.
+		if IsImageBuiltin(funcName) && (len(funcName) >= 5 && funcName[len(funcName)-2:] == "At") {
+			return "vec4"
+		}
+		// Image origin/size builtins return vec2.
+		if IsImageBuiltin(funcName) {
+			return "vec2"
 		}
 		// For built-in functions, default to float.
 		return "float"

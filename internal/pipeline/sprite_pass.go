@@ -125,22 +125,33 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 		}
 
 		// Switch shader if this batch uses a different one.
+		// Resolve custom shader once for both pipeline binding and uniform setting.
+		var resolvedInfo *ShaderInfo
+		if b.ShaderID != 0 && sp.ResolveShader != nil {
+			resolvedInfo = sp.ResolveShader(b.ShaderID)
+		}
+
 		if b.ShaderID != currentShaderID {
-			if b.ShaderID == 0 {
+			switch {
+			case b.ShaderID == 0:
 				sp.bindDefaultShader(enc)
-			} else if sp.ResolveShader != nil {
-				info := sp.ResolveShader(b.ShaderID)
-				if info != nil {
-					enc.SetPipeline(info.Pipeline)
-					info.Shader.SetUniformMat4("uProjection", sp.Projection)
-				}
+			case resolvedInfo != nil:
+				enc.SetPipeline(resolvedInfo.Pipeline)
+				resolvedInfo.Shader.SetUniformMat4("uProjection", sp.Projection)
+			default:
+				// Unregistered shader ID: fall back to default.
+				sp.bindDefaultShader(enc)
 			}
 			currentShaderID = b.ShaderID
 		}
 
-		// Set color matrix uniforms for this batch.
-		sp.shader.SetUniformMat4("uColorBody", b.ColorBody)
-		sp.shader.SetUniformVec4("uColorTranslation", b.ColorTranslation)
+		// Set color matrix uniforms on the active shader for this batch.
+		activeShader := sp.shader
+		if resolvedInfo != nil {
+			activeShader = resolvedInfo.Shader
+		}
+		activeShader.SetUniformMat4("uColorBody", b.ColorBody)
+		activeShader.SetUniformVec4("uColorTranslation", b.ColorTranslation)
 
 		// Upload vertex data.
 		vertexData := vertexSliceToBytes(b.Vertices)

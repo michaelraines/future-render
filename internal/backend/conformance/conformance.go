@@ -17,8 +17,8 @@
 package conformance
 
 import (
+	"bytes"
 	"encoding/binary"
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -132,7 +132,7 @@ func RunScene(t *testing.T, dev backend.Device, enc backend.CommandEncoder, scen
 	if !result.Match {
 		// Save actual and diff images for debugging.
 		saveDiffArtifacts(t, scene.Name, actual, golden)
-		t.Errorf("scene %q: pixel mismatch — max diff %d, %d/%d pixels differ (tolerance %d)",
+		require.Failf(t, "pixel mismatch", "scene %q: max diff %d, %d/%d pixels differ (tolerance %d)",
 			scene.Name, result.MaxDiff, result.MismatchCount, result.TotalPixels, Tolerance)
 	}
 }
@@ -202,15 +202,14 @@ func loadOrGenerateGolden(t *testing.T, sceneName string, actual *Result) *Resul
 
 	// Auto-generate on first run.
 	if os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("creating golden dir: %v", err)
-		}
+		err = os.MkdirAll(filepath.Dir(path), 0o755)
+		require.NoError(t, err, "creating golden dir")
 		saveGoldenPNG(t, path, actual)
 		t.Logf("generated golden image: %s (first run)", path)
 		return actual
 	}
 
-	t.Fatalf("reading golden image %s: %v", path, err)
+	require.NoError(t, err, "reading golden image %s", path)
 	return nil
 }
 
@@ -849,23 +848,6 @@ func clampByte255(v int) uint8 {
 	return uint8(v)
 }
 
-type bytesReaderImpl struct {
-	data []byte
-	pos  int
-}
-
-func bytesReader(data []byte) *bytesReaderImpl {
-	return &bytesReaderImpl{data: data}
-}
-
-func (r *bytesReaderImpl) Read(p []byte) (int, error) {
-	if r.pos >= len(r.data) {
-		return 0, fmt.Errorf("EOF")
-	}
-	n := copy(p, r.data[r.pos:])
-	r.pos += n
-	if r.pos >= len(r.data) {
-		return n, fmt.Errorf("EOF")
-	}
-	return n, nil
+func bytesReader(data []byte) *bytes.Reader {
+	return bytes.NewReader(data)
 }

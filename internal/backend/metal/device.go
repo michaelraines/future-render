@@ -11,6 +11,7 @@ import (
 
 	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/michaelraines/future-render/internal/backend/soft"
+	"github.com/michaelraines/future-render/internal/backend/softdelegate"
 )
 
 // Device implements backend.Device for Metal.
@@ -76,7 +77,7 @@ func (d *Device) NewTexture(desc backend.TextureDescriptor) (backend.Texture, er
 		return nil, fmt.Errorf("metal: %w", err)
 	}
 	return &Texture{
-		inner:       inner,
+		Texture:     inner,
 		pixelFormat: mtlPixelFormatFromBackend(desc.Format),
 		usage:       mtlTextureUsageShaderRead,
 	}, nil
@@ -89,7 +90,7 @@ func (d *Device) NewBuffer(desc backend.BufferDescriptor) (backend.Buffer, error
 		return nil, fmt.Errorf("metal: %w", err)
 	}
 	return &Buffer{
-		inner:       inner,
+		Buffer:      inner,
 		storageMode: mtlStorageModeShared,
 	}, nil
 }
@@ -100,7 +101,7 @@ func (d *Device) NewShader(desc backend.ShaderDescriptor) (backend.Shader, error
 	if err != nil {
 		return nil, fmt.Errorf("metal: %w", err)
 	}
-	return &Shader{inner: inner}, nil
+	return &Shader{Shader: inner}, nil
 }
 
 // NewRenderTarget creates a Metal render target.
@@ -109,16 +110,21 @@ func (d *Device) NewRenderTarget(desc backend.RenderTargetDescriptor) (backend.R
 	if err != nil {
 		return nil, fmt.Errorf("metal: %w", err)
 	}
-	return &RenderTarget{inner: inner}, nil
+	return &RenderTarget{RenderTarget: inner}, nil
 }
 
 // NewPipeline creates a Metal render pipeline state (MTLRenderPipelineState).
 func (d *Device) NewPipeline(desc backend.PipelineDescriptor) (backend.Pipeline, error) {
-	inner, err := d.inner.NewPipeline(desc)
+	// Unwrap shader so the inner soft device receives the raw soft.Shader.
+	innerDesc := desc
+	if s, ok := desc.Shader.(*Shader); ok {
+		innerDesc.Shader = s.Shader
+	}
+	inner, err := d.inner.NewPipeline(innerDesc)
 	if err != nil {
 		return nil, fmt.Errorf("metal: %w", err)
 	}
-	return &Pipeline{inner: inner, desc: desc}, nil
+	return &Pipeline{Pipeline: inner, desc: desc}, nil
 }
 
 // Capabilities returns Metal device capabilities.
@@ -136,5 +142,5 @@ func (d *Device) Capabilities() backend.DeviceCapabilities {
 
 // Encoder returns the command encoder.
 func (d *Device) Encoder() backend.CommandEncoder {
-	return &Encoder{inner: d.inner.Encoder()}
+	return &Encoder{Encoder: softdelegate.Encoder{Inner: d.inner.Encoder()}}
 }

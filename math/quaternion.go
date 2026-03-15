@@ -128,7 +128,7 @@ func (q Quat) Slerp(other Quat, t float64) Quat {
 		}.Normalize()
 	}
 
-	theta := gomath.Acos(dot)
+	theta := gomath.Acos(clamp(dot, -1, 1))
 	sinTheta := gomath.Sin(theta)
 	s0 := gomath.Sin((1-t)*theta) / sinTheta
 	s1 := gomath.Sin(t*theta) / sinTheta
@@ -175,6 +175,11 @@ func (q Quat) ToAxisAngle() (axis Vec3, angle float64) {
 
 // ApproxEqual returns whether q and other are approximately equal within epsilon.
 func (q Quat) ApproxEqual(other Quat, epsilon float64) bool {
+	// Quaternions q and -q represent the same rotation (double cover).
+	// Compare against both and accept the closer one.
+	if q.Dot(other) < 0 {
+		other = Quat{X: -other.X, Y: -other.Y, Z: -other.Z, W: -other.W}
+	}
 	return gomath.Abs(q.X-other.X) <= epsilon &&
 		gomath.Abs(q.Y-other.Y) <= epsilon &&
 		gomath.Abs(q.Z-other.Z) <= epsilon &&

@@ -11,6 +11,7 @@ import (
 
 	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/michaelraines/future-render/internal/backend/soft"
+	"github.com/michaelraines/future-render/internal/backend/softdelegate"
 )
 
 // Device implements backend.Device for WebGPU.
@@ -111,9 +112,9 @@ func (d *Device) NewTexture(desc backend.TextureDescriptor) (backend.Texture, er
 		return nil, fmt.Errorf("webgpu: %w", err)
 	}
 	return &Texture{
-		inner:  inner,
-		format: wgpuTextureFormatFromBackend(desc.Format),
-		usage:  wgpuTextureUsageSampled | wgpuTextureUsageCopyDst,
+		Texture: inner,
+		format:  wgpuTextureFormatFromBackend(desc.Format),
+		usage:   wgpuTextureUsageSampled | wgpuTextureUsageCopyDst,
 	}, nil
 }
 
@@ -124,8 +125,8 @@ func (d *Device) NewBuffer(desc backend.BufferDescriptor) (backend.Buffer, error
 		return nil, fmt.Errorf("webgpu: %w", err)
 	}
 	return &Buffer{
-		inner: inner,
-		usage: wgpuBufferUsageFromBackend(desc.Usage),
+		Buffer: inner,
+		usage:  wgpuBufferUsageFromBackend(desc.Usage),
 	}, nil
 }
 
@@ -135,7 +136,7 @@ func (d *Device) NewShader(desc backend.ShaderDescriptor) (backend.Shader, error
 	if err != nil {
 		return nil, fmt.Errorf("webgpu: %w", err)
 	}
-	return &Shader{inner: inner}, nil
+	return &Shader{Shader: inner}, nil
 }
 
 // NewRenderTarget creates a WebGPU render target.
@@ -144,16 +145,21 @@ func (d *Device) NewRenderTarget(desc backend.RenderTargetDescriptor) (backend.R
 	if err != nil {
 		return nil, fmt.Errorf("webgpu: %w", err)
 	}
-	return &RenderTarget{inner: inner}, nil
+	return &RenderTarget{RenderTarget: inner}, nil
 }
 
 // NewPipeline creates a WebGPU render pipeline (GPURenderPipeline).
 func (d *Device) NewPipeline(desc backend.PipelineDescriptor) (backend.Pipeline, error) {
-	inner, err := d.inner.NewPipeline(desc)
+	// Unwrap shader so the inner soft device receives the raw soft.Shader.
+	innerDesc := desc
+	if s, ok := desc.Shader.(*Shader); ok {
+		innerDesc.Shader = s.Shader
+	}
+	inner, err := d.inner.NewPipeline(innerDesc)
 	if err != nil {
 		return nil, fmt.Errorf("webgpu: %w", err)
 	}
-	return &Pipeline{inner: inner, desc: desc}, nil
+	return &Pipeline{Pipeline: inner, desc: desc}, nil
 }
 
 // Capabilities returns WebGPU device capabilities.
@@ -171,5 +177,5 @@ func (d *Device) Capabilities() backend.DeviceCapabilities {
 
 // Encoder returns the command encoder.
 func (d *Device) Encoder() backend.CommandEncoder {
-	return &Encoder{inner: d.inner.Encoder()}
+	return &Encoder{Encoder: softdelegate.Encoder{Inner: d.inner.Encoder()}}
 }

@@ -2,6 +2,7 @@ package text
 
 import (
 	"strings"
+	"sync"
 	"unicode"
 
 	futurerender "github.com/michaelraines/future-render"
@@ -23,7 +24,9 @@ type DrawOptions struct {
 	// GeoM applies a 2D transformation to the text.
 	GeoM futurerender.GeoM
 
-	// ColorScale tints the text. Zero value draws white text.
+	// ColorScale tints the text. A zero-valued ColorScale is treated as
+	// opaque white (1,1,1,1), matching Ebitengine's convention so that
+	// default DrawOptions{} draws white text.
 	ColorScale fmath.Color
 
 	// Align specifies horizontal text alignment. Default is AlignLeft.
@@ -36,8 +39,13 @@ type DrawOptions struct {
 // atlas so glyph sizes don't conflict.
 var globalAtlases = map[*Face]*fontAtlas{}
 
+// globalAtlasesMu protects concurrent access to globalAtlases.
+var globalAtlasesMu sync.Mutex
+
 // atlasFor returns (or creates) the font atlas for the given face.
 func atlasFor(f *Face) *fontAtlas {
+	globalAtlasesMu.Lock()
+	defer globalAtlasesMu.Unlock()
 	a, ok := globalAtlases[f]
 	if !ok {
 		a = newFontAtlas()
@@ -234,7 +242,11 @@ func drawLine(target *futurerender.Image, s string, face *Face, x, y, refWidth f
 		}
 
 		g := face.cache.get(r, atlas)
-		if g == nil || g.empty {
+		if g == nil {
+			prev = r
+			continue
+		}
+		if g.empty {
 			curX += g.advance
 			prev = r
 			continue

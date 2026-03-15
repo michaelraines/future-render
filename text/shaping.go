@@ -2,6 +2,7 @@ package text
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/go-text/typesetting/di"
 	"github.com/go-text/typesetting/font"
@@ -27,6 +28,10 @@ func NewShaperFace(src []byte, size float64) (*ShaperFace, error) {
 	faces, err := font.ParseTTC(bytes.NewReader(src))
 	if err != nil {
 		return nil, err
+	}
+
+	if len(faces) == 0 {
+		return nil, fmt.Errorf("text: no faces found in font data")
 	}
 
 	face := faces[0]
@@ -79,7 +84,7 @@ func (f *ShaperFace) Shape(text string) []ShapedGlyph {
 		RunStart:  0,
 		RunEnd:    len(runes),
 		Face:      f.face,
-		Size:      fixed.I(int(f.size)),
+		Size:      fixed.Int26_6(f.size * 64),
 		Script:    language.Latin,
 		Direction: di.DirectionLTR,
 	}
@@ -101,7 +106,7 @@ func (f *ShaperFace) ShapeBidi(text string) []ShapedGlyph {
 			RunStart:  0,
 			RunEnd:    len(runes),
 			Face:      f.face,
-			Size:      fixed.I(int(f.size)),
+			Size:      fixed.Int26_6(f.size * 64),
 			Script:    run.script,
 			Direction: run.direction,
 		}

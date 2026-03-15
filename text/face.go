@@ -13,6 +13,7 @@ package text
 
 import (
 	"fmt"
+	"io"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -77,6 +78,26 @@ func NewFace(src []byte, size float64) (*Face, error) {
 // Metrics returns the face's line metrics.
 func (f *Face) Metrics() Metrics {
 	return f.metrics
+}
+
+// Close releases resources associated with this Face, including its glyph
+// cache and atlas texture. After calling Close, the Face must not be used.
+func (f *Face) Close() {
+	// Remove and dispose the atlas for this face.
+	globalAtlasesMu.Lock()
+	if a, ok := globalAtlases[f]; ok {
+		if a.image != nil {
+			a.image.Dispose()
+		}
+		delete(globalAtlases, f)
+	}
+	globalAtlasesMu.Unlock()
+	// Clear the glyph cache.
+	clear(f.cache.entries)
+	// Close the underlying font face if it supports io.Closer.
+	if closer, ok := f.face.(io.Closer); ok {
+		_ = closer.Close()
+	}
 }
 
 // Measure returns the advance width of a string in pixels.

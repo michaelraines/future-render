@@ -7,11 +7,9 @@ import "github.com/michaelraines/future-render/internal/backend"
 // rather than baked into a PSO. This type stores the descriptor so the
 // encoder can apply the correct GL state before draw calls.
 type Pipeline struct {
-	inner backend.Pipeline
-	desc  backend.PipelineDescriptor
+	backend.Pipeline // delegates Dispose to inner
+	desc             backend.PipelineDescriptor
 }
 
-// Dispose releases the pipeline.
-func (p *Pipeline) Dispose() {
-	p.inner.Dispose()
-}
+// InnerPipeline returns the wrapped soft pipeline for encoder unwrapping.
+func (p *Pipeline) InnerPipeline() backend.Pipeline { return p.Pipeline }
