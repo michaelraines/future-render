@@ -40,7 +40,8 @@ func TestIsKeyJustReleasedNilEngine(t *testing.T) {
 	require.False(t, IsKeyJustReleased(KeyA))
 }
 
-func TestInputCharsReturnsNil(t *testing.T) {
+func TestInputCharsNilEngine(t *testing.T) {
+	withNilEngine(t)
 	require.Nil(t, InputChars())
 }
 
@@ -223,6 +224,22 @@ func TestIsGamepadButtonPressedWired(t *testing.T) {
 	require.True(t, IsGamepadButtonPressed(GamepadID(0), GamepadButton(0)))
 	require.False(t, IsGamepadButtonPressed(GamepadID(0), GamepadButton(1)))
 	require.True(t, IsGamepadButtonPressed(GamepadID(0), GamepadButton(2)))
+}
+
+// --- InputChars wired ---
+
+func TestInputCharsWired(t *testing.T) {
+	s := withInputEngine(t)
+
+	require.Nil(t, InputChars())
+
+	s.OnCharEvent('H')
+	s.OnCharEvent('i')
+	chars := InputChars()
+	require.Equal(t, []rune{'H', 'i'}, chars)
+
+	s.Update()
+	require.Nil(t, InputChars())
 }
 
 // --- Key mapping correctness ---

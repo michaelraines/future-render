@@ -299,6 +299,35 @@ func TestGamepadButtonOutOfBounds(t *testing.T) {
 	require.False(t, s.GamepadButton(0, 100))
 }
 
+// --- Character input ---
+
+func TestOnCharEvent(t *testing.T) {
+	s := New()
+
+	require.Nil(t, s.InputChars())
+
+	s.OnCharEvent('A')
+	s.OnCharEvent('B')
+	s.OnCharEvent('é')
+
+	chars := s.InputChars()
+	require.Equal(t, []rune{'A', 'B', 'é'}, chars)
+
+	// InputChars returns a copy; calling again returns same data.
+	chars2 := s.InputChars()
+	require.Equal(t, chars, chars2)
+}
+
+func TestCharBufferClearedOnUpdate(t *testing.T) {
+	s := New()
+
+	s.OnCharEvent('X')
+	require.Len(t, s.InputChars(), 1)
+
+	s.Update()
+	require.Nil(t, s.InputChars())
+}
+
 // --- OnResizeEvent ---
 
 func TestOnResizeEventNoOp(t *testing.T) {

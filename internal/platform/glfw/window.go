@@ -32,6 +32,7 @@ type Window struct {
 
 	// Prevent callback pointers from being GC'd.
 	keyCB         uintptr
+	charCB        uintptr
 	mouseButtonCB uintptr
 	cursorPosCB   uintptr
 	scrollCB      uintptr
@@ -229,6 +230,15 @@ func (w *Window) installCallbacks() {
 		})
 	})
 	fnGlfwSetKeyCallback(w.win, w.keyCB)
+
+	w.charCB = purego.NewCallback(func(window uintptr, codepoint uint32) {
+		win := activeWindows[window]
+		if win == nil || win.handler == nil {
+			return
+		}
+		win.handler.OnCharEvent(rune(codepoint))
+	})
+	fnGlfwSetCharCallback(w.win, w.charCB)
 
 	w.mouseButtonCB = purego.NewCallback(func(window uintptr, button, action, mods int32) {
 		win := activeWindows[window]

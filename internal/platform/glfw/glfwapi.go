@@ -145,6 +145,7 @@ var (
 	fnGlfwGetVideoMode       func(monitor uintptr) uintptr // returns *GLFWvidmode
 
 	fnGlfwSetKeyCallback             func(window, cbfun uintptr) uintptr
+	fnGlfwSetCharCallback            func(window, cbfun uintptr) uintptr
 	fnGlfwSetMouseButtonCallback     func(window, cbfun uintptr) uintptr
 	fnGlfwSetCursorPosCallback       func(window, cbfun uintptr) uintptr
 	fnGlfwSetScrollCallback          func(window, cbfun uintptr) uintptr
@@ -208,6 +209,7 @@ func initGLFWAPI() error {
 		{&fnGlfwGetPrimaryMonitor, "glfwGetPrimaryMonitor"},
 		{&fnGlfwGetVideoMode, "glfwGetVideoMode"},
 		{&fnGlfwSetKeyCallback, "glfwSetKeyCallback"},
+		{&fnGlfwSetCharCallback, "glfwSetCharCallback"},
 		{&fnGlfwSetMouseButtonCallback, "glfwSetMouseButtonCallback"},
 		{&fnGlfwSetCursorPosCallback, "glfwSetCursorPosCallback"},
 		{&fnGlfwSetScrollCallback, "glfwSetScrollCallback"},

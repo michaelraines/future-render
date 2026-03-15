@@ -32,9 +32,11 @@ func IsKeyJustReleased(key Key) bool {
 }
 
 // InputChars returns the Unicode characters input since the last frame.
-// Not yet implemented — requires GLFW character callback.
 func InputChars() []rune {
-	return nil
+	if globalEngine == nil || globalEngine.inputState == nil {
+		return nil
+	}
+	return globalEngine.inputState.InputChars()
 }
 
 // IsMouseButtonPressed returns whether the given mouse button is pressed.

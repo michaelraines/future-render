@@ -11,6 +11,7 @@ type State struct {
 	// Keyboard
 	keys     [platform.KeyCount]bool
 	prevKeys [platform.KeyCount]bool
+	chars    []rune
 
 	// Mouse
 	mouseButtons       [5]bool
@@ -55,6 +56,7 @@ func (s *State) Update() {
 	s.mouseDY = 0
 	s.scrollDX = 0
 	s.scrollDY = 0
+	s.chars = s.chars[:0]
 }
 
 // --- InputHandler interface implementation ---
@@ -70,6 +72,11 @@ func (s *State) OnKeyEvent(event platform.KeyEvent) {
 	case platform.ActionRelease:
 		s.keys[event.Key] = false
 	}
+}
+
+// OnCharEvent handles a character input event.
+func (s *State) OnCharEvent(char rune) {
+	s.chars = append(s.chars, char)
 }
 
 // OnMouseButtonEvent handles a mouse button event.
@@ -147,6 +154,16 @@ func (s *State) IsKeyJustReleased(key platform.Key) bool {
 		return false
 	}
 	return !s.keys[key] && s.prevKeys[key]
+}
+
+// InputChars returns the runes input since the last frame.
+func (s *State) InputChars() []rune {
+	if len(s.chars) == 0 {
+		return nil
+	}
+	result := make([]rune, len(s.chars))
+	copy(result, s.chars)
+	return result
 }
 
 // IsMouseButtonPressed returns whether the mouse button is currently pressed.

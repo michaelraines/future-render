@@ -161,7 +161,7 @@ Goal: full keyboard, mouse, touch, and gamepad input parity with Ebitengine.
 | Key set expanded | Done | Full keyboard: A-Z, 0-9, F1-F12, arrows, modifiers, punctuation, keypad |
 | Key mapping (public → platform) | Done | `keyMap` array + `keyToInternal()`, handles differing iota orderings |
 | `internal/input` test coverage | Done | 100% coverage |
-| `InputChars` (character input) | Deferred | Requires GLFW char callback, not yet wired |
+| `InputChars` (character input) | Done | GLFW char callback wired via `glfwSetCharCallback` |
 | Gamepad GLFW joystick polling | Deferred | Internal plumbing exists; GLFW polling not yet implemented |
 | `cmd/input/main.go` example | Deferred | Needs text rendering (M5) to display state meaningfully |
 

@@ -81,6 +81,7 @@ func DefaultWindowConfig() WindowConfig {
 // InputHandler receives input events from the window.
 type InputHandler interface {
 	OnKeyEvent(event KeyEvent)
+	OnCharEvent(char rune)
 	OnMouseButtonEvent(event MouseButtonEvent)
 	OnMouseMoveEvent(event MouseMoveEvent)
 	OnMouseScrollEvent(event MouseScrollEvent)
