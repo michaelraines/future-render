@@ -10,6 +10,16 @@ import (
 // TextureResolver maps a batcher texture ID to a backend.Texture.
 type TextureResolver func(textureID uint32) backend.Texture
 
+// ShaderInfo holds a custom shader's backend resources for rendering.
+type ShaderInfo struct {
+	Shader   backend.Shader
+	Pipeline backend.Pipeline
+}
+
+// ShaderResolver maps a batcher shader ID to a ShaderInfo.
+// Returns nil if the shader ID is not registered (use default).
+type ShaderResolver func(shaderID uint32) *ShaderInfo
+
 // SpritePass renders 2D sprite batches. It flushes the batcher, uploads
 // vertex/index data to dynamic GPU buffers, and issues indexed draw calls.
 type SpritePass struct {
@@ -23,6 +33,9 @@ type SpritePass struct {
 
 	// ResolveTexture maps batch texture IDs to backend textures.
 	ResolveTexture TextureResolver
+
+	// ResolveShader maps batch shader IDs to custom shader info.
+	ResolveShader ShaderResolver
 
 	// Projection is the orthographic projection matrix, set each frame.
 	Projection [16]float32
@@ -82,13 +95,33 @@ func (sp *SpritePass) Execute(enc backend.CommandEncoder, ctx *PassContext) {
 		return
 	}
 
-	// Set pipeline and projection uniform.
+	// Track which shader is currently bound to minimize state changes.
+	currentShaderID := uint32(0)
+
+	// Set default pipeline and projection uniform.
 	enc.SetPipeline(sp.pipeline)
 	sp.shader.SetUniformMat4("uProjection", sp.Projection)
 	sp.shader.SetUniformInt("uTexture", 0)
 
 	for i := range batches {
 		b := &batches[i]
+
+		// Switch shader if this batch uses a different one.
+		if b.ShaderID != currentShaderID {
+			if b.ShaderID == 0 {
+				// Switch back to default shader.
+				enc.SetPipeline(sp.pipeline)
+				sp.shader.SetUniformMat4("uProjection", sp.Projection)
+				sp.shader.SetUniformInt("uTexture", 0)
+			} else if sp.ResolveShader != nil {
+				info := sp.ResolveShader(b.ShaderID)
+				if info != nil {
+					enc.SetPipeline(info.Pipeline)
+					info.Shader.SetUniformMat4("uProjection", sp.Projection)
+				}
+			}
+			currentShaderID = b.ShaderID
+		}
 
 		// Upload vertex data.
 		vertexData := vertexSliceToBytes(b.Vertices)

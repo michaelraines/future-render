@@ -1,6 +1,7 @@
 package futurerender
 
 import (
+	"fmt"
 	goimage "image"
 	"image/draw"
 
@@ -331,6 +332,148 @@ type DrawTrianglesOptions struct {
 
 	// FillRule specifies the fill rule for overlapping triangles.
 	FillRule FillRule
+}
+
+// DrawRectShaderOptions holds options for DrawRectShader.
+type DrawRectShaderOptions struct {
+	// GeoM is the geometry transformation matrix.
+	GeoM GeoM
+
+	// ColorScale scales the RGBA color of each pixel.
+	ColorScale fmath.Color
+
+	// Blend specifies the blend mode.
+	Blend BlendMode
+
+	// Uniforms maps uniform names to values. Values can be float32, float64,
+	// int, int32, or []float32. Slice length determines the GLSL type:
+	// 1→float, 2→vec2, 4→vec4, 16→mat4.
+	Uniforms map[string]any
+
+	// Images are up to 4 source textures. Images[0] is bound as uTexture0, etc.
+	Images [4]*Image
+}
+
+// DrawTrianglesShaderOptions holds options for DrawTrianglesShader.
+type DrawTrianglesShaderOptions struct {
+	// Blend specifies the blend mode.
+	Blend BlendMode
+
+	// FillRule specifies the fill rule for overlapping triangles.
+	FillRule FillRule
+
+	// Uniforms maps uniform names to values.
+	Uniforms map[string]any
+
+	// Images are up to 4 source textures.
+	Images [4]*Image
+}
+
+// DrawRectShader draws a rectangle of the given dimensions using a custom
+// shader. This is the equivalent of ebiten.Image.DrawRectShader.
+func (img *Image) DrawRectShader(width, height int, shader *Shader, opts *DrawRectShaderOptions) {
+	if img.disposed || shader == nil || shader.disposed {
+		return
+	}
+	if globalRenderer == nil || globalRenderer.batcher == nil {
+		return
+	}
+
+	var o DrawRectShaderOptions
+	if opts != nil {
+		o = *opts
+	}
+
+	// Apply uniforms to shader before draw.
+	shader.applyUniforms(o.Uniforms)
+
+	w := float32(width)
+	h := float32(height)
+
+	// Apply GeoM to quad corners.
+	x0, y0 := o.GeoM.Apply(0, 0)
+	x1, y1 := o.GeoM.Apply(float64(w), 0)
+	x2, y2 := o.GeoM.Apply(float64(w), float64(h))
+	x3, y3 := o.GeoM.Apply(0, float64(h))
+
+	cr, cg, cb, ca := colorScaleOrDefault(o.ColorScale)
+	blend := blendToBackend(o.Blend)
+
+	// Determine texture ID from first source image, or white texture.
+	texID := globalRenderer.whiteTextureID
+	if o.Images[0] != nil && o.Images[0].texture != nil {
+		texID = o.Images[0].textureID
+	}
+
+	// Bind additional textures via shader uniforms.
+	for i := 0; i < 4; i++ {
+		if o.Images[i] != nil && o.Images[i].texture != nil {
+			shader.backend.SetUniformInt(fmt.Sprintf("uTexture%d", i), int32(i))
+		}
+	}
+
+	globalRenderer.batcher.Add(batch.DrawCommand{
+		Vertices: []batch.Vertex2D{
+			{PosX: float32(x0), PosY: float32(y0), TexU: 0, TexV: 0, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x1), PosY: float32(y1), TexU: 1, TexV: 0, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x2), PosY: float32(y2), TexU: 1, TexV: 1, R: cr, G: cg, B: cb, A: ca},
+			{PosX: float32(x3), PosY: float32(y3), TexU: 0, TexV: 1, R: cr, G: cg, B: cb, A: ca},
+		},
+		Indices:   []uint16{0, 1, 2, 0, 2, 3},
+		TextureID: texID,
+		BlendMode: blend,
+		ShaderID:  shader.id,
+	})
+}
+
+// DrawTrianglesShader draws triangles using a custom shader. This is the
+// equivalent of ebiten.Image.DrawTrianglesShader.
+func (img *Image) DrawTrianglesShader(vertices []Vertex, indices []uint16, shader *Shader, opts *DrawTrianglesShaderOptions) {
+	if img.disposed || shader == nil || shader.disposed {
+		return
+	}
+	if globalRenderer == nil || globalRenderer.batcher == nil {
+		return
+	}
+
+	var o DrawTrianglesShaderOptions
+	if opts != nil {
+		o = *opts
+	}
+
+	// Apply uniforms.
+	shader.applyUniforms(o.Uniforms)
+
+	batchVerts := make([]batch.Vertex2D, len(vertices))
+	for i, v := range vertices {
+		batchVerts[i] = batch.Vertex2D{
+			PosX: v.DstX,
+			PosY: v.DstY,
+			TexU: v.SrcX,
+			TexV: v.SrcY,
+			R:    v.ColorR,
+			G:    v.ColorG,
+			B:    v.ColorB,
+			A:    v.ColorA,
+		}
+	}
+
+	texID := globalRenderer.whiteTextureID
+	blend := blendToBackend(o.Blend)
+	fillRule := fillRuleToBackend(o.FillRule)
+
+	if o.Images[0] != nil && o.Images[0].texture != nil {
+		texID = o.Images[0].textureID
+	}
+
+	globalRenderer.batcher.Add(batch.DrawCommand{
+		Vertices:  batchVerts,
+		Indices:   indices,
+		TextureID: texID,
+		BlendMode: blend,
+		FillRule:  fillRule,
+		ShaderID:  shader.id,
+	})
 }
 
 // Vertex represents a vertex for DrawTriangles.

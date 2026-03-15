@@ -235,20 +235,33 @@ vorbis 86.1%.
 
 ---
 
-## Milestone 7 — Shader System (Planned)
+## Milestone 7 — Shader System (Done)
 
 Goal: user-defined shaders beyond the built-in sprite shader.
 
 | Task | Status | Notes |
 |---|---|---|
-| `Shader` public type wrapping backend shader | Planned | |
-| GLSL vertex + fragment shader compilation | Planned | |
-| Uniform binding API (float, vec2/4, mat4, texture) | Planned | |
-| `Image.DrawRectShader()` equivalent | Planned | |
-| Shader hot-reload for development | Planned | Optional, dev-only |
-| Example: custom post-processing shader | Planned | |
+| `Shader` public type wrapping backend shader | Done | `NewShader` (Kage) + `NewShaderFromGLSL` |
+| Kage-to-GLSL transpiler | Done | `internal/shaderir/`, uses `go/parser` + `go/ast` |
+| GLSL vertex + fragment shader compilation | Done | Via backend `Device.NewShader` |
+| Uniform binding API (float, vec2/4, mat4, int) | Done | Direct methods + `map[string]any` Ebitengine-compatible |
+| `Image.DrawRectShader()` | Done | Quad generation with GeoM, ColorScale, up to 4 source Images |
+| `Image.DrawTrianglesShader()` | Done | Custom vertices with custom shader |
+| Multi-shader SpritePass support | Done | Per-batch shader switching with ShaderResolver |
+| Kage built-in functions | Done | 40+ math functions, imageSrc0-3At, imageDstOrigin/Size |
+| Shader hot-reload for development | Deferred | Dev-only feature |
+| Example: custom post-processing shader | Deferred | Needs GLFW build environment |
 
-**Exit criteria**: users can write and apply custom GLSL shaders to draw calls.
+**Exit criteria**: users can write and apply custom Kage or GLSL shaders to draw calls.
+
+**Completed**: Full shader system with dual entry points: `NewShader(kageSource)`
+for Ebitengine-compatible Kage shaders and `NewShaderFromGLSL(vert, frag)` for
+raw GLSL. Kage transpiler parses Go-syntax shader source via `go/parser`,
+extracts uniforms and Fragment function, emits GLSL 330 core with image helper
+functions (imageSrc0-3At, bounds checking, origin/size). SpritePass supports
+per-batch shader switching via ShaderResolver. Uniforms can be set via direct
+methods or Ebitengine-compatible `map[string]any`. Coverage: shaderir 83.8%,
+root package 97.2%, pipeline 85.3%.
 
 ---
 

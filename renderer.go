@@ -23,6 +23,10 @@ type renderer struct {
 	// registerTexture is called when a new texture is created (e.g. by
 	// NewImage) so the engine can track it for lookup during rendering.
 	registerTexture func(id uint32, tex backend.Texture)
+
+	// registerShader is called when a new shader is created so the
+	// pipeline can look it up by ID during rendering.
+	registerShader func(id uint32, shader *Shader)
 }
 
 // globalRenderer is the active renderer, set by the engine during init.
