@@ -162,8 +162,8 @@ Goal: full keyboard, mouse, touch, and gamepad input parity with Ebitengine.
 | Key mapping (public → platform) | Done | `keyMap` array + `keyToInternal()`, handles differing iota orderings |
 | `internal/input` test coverage | Done | 100% coverage |
 | `InputChars` (character input) | Done | GLFW char callback wired via `glfwSetCharCallback` |
-| Gamepad GLFW joystick polling | Deferred | Internal plumbing exists; GLFW polling not yet implemented |
-| `cmd/input/main.go` example | Deferred | Needs text rendering (M5) to display state meaningfully |
+| Gamepad GLFW joystick polling | Done | purego GLFW bindings, per-frame polling, disconnect detection |
+| `cmd/input/main.go` example | Done | Displays keyboard, mouse, and gamepad state via text rendering |
 
 **Exit criteria**: all public input functions return real platform state.
 
@@ -171,7 +171,10 @@ Goal: full keyboard, mouse, touch, and gamepad input parity with Ebitengine.
 table handles differing iota orderings between public and platform key
 constants. GLFW cursor position callback now computes DX/DY deltas. Expanded
 key set to cover full keyboard. Added `IsKeyJustPressed`/`IsKeyJustReleased`
-to public API. 100% test coverage on `internal/input`, 99.4% on root package.
+to public API. GLFW joystick polling added via purego bindings
+(`glfwJoystickPresent`, `glfwGetJoystickAxes`, `glfwGetJoystickButtons`),
+polled each frame with disconnect detection. 100% test coverage on
+`internal/input`, 94.5% on root package.
 
 ---
 
@@ -191,11 +194,11 @@ Goal: render TTF/OTF text to Images with a clean public API.
 | `DrawOptions` with `GeoM` and `ColorScale` | Done | Transform and tint text |
 | Unicode support (basic) | Done | Full rune iteration, any glyph the font contains |
 | Test coverage | Done | 94.7% on `text/` package |
-| Multi-line layout / word wrapping | Deferred | Caller splits lines manually |
-| Text alignment (center, right) | Deferred | Future enhancement |
-| Complex scripts (BiDi, ligatures) | Deferred | Needs `go-text/typesetting` |
-| `cmd/text/main.go` example | Deferred | Needs GLFW build environment |
-| `cmd/input/main.go` example | Deferred | Needs GLFW build environment |
+| Multi-line layout / word wrapping | Done | `DrawWrapped`, `WrapLines` with word boundary splitting |
+| Text alignment (center, right) | Done | `Align` field on `DrawOptions`: AlignLeft/Center/Right |
+| Complex scripts (BiDi, ligatures) | Done | `ShaperFace` via go-text/typesetting, BiDi run splitting |
+| `cmd/text/main.go` example | Done | Multi-line, alignment, word wrapping demo |
+| `cmd/input/main.go` example | Done | Keyboard, mouse, gamepad state display |
 
 **Exit criteria**: render arbitrary Unicode text from TTF fonts at any size.
 
@@ -204,6 +207,10 @@ RGBA8 atlas, and `Draw()` function. Glyphs flow through existing
 `DrawImage` → `Batcher` → `SpritePass` pipeline with zero internal changes.
 All glyphs from the same face auto-merge into 1-2 GPU draw calls via shared
 atlas texture. Added `Image.WritePixels()` for incremental atlas uploads.
+Multi-line text via `DrawWrapped`/`WrapLines` with word-boundary splitting.
+Text alignment (AlignLeft/Center/Right) via `DrawOptions.Align`. Complex
+script support via `ShaperFace` using go-text/typesetting for HarfBuzz
+shaping, heuristic BiDi run splitting, ligatures. Coverage: 96.0%.
 
 ---
 
@@ -221,7 +228,7 @@ Goal: audio playback parity with Ebitengine's `audio` package.
 | Volume, pause, seek, loop | Done | Per-player volume, SetPosition, Rewind, InfiniteLoop |
 | Multiple simultaneous players | Done | Via oto context automatic mixing |
 | InfiniteLoop with intro support | Done | `NewInfiniteLoopWithIntro` for intro+loop BGM |
-| Example: sound effects + BGM | Deferred | Needs GLFW build environment |
+| Example: sound effects + BGM | Done | `cmd/audio/main.go` — programmatic sine wave, play/pause |
 
 **Exit criteria**: play, pause, loop, and mix audio from WAV/OGG sources.
 
@@ -249,8 +256,8 @@ Goal: user-defined shaders beyond the built-in sprite shader.
 | `Image.DrawTrianglesShader()` | Done | Custom vertices with custom shader |
 | Multi-shader SpritePass support | Done | Per-batch shader switching with ShaderResolver |
 | Kage built-in functions | Done | 40+ math functions, imageSrc0-3At, imageDstOrigin/Size |
-| Shader hot-reload for development | Deferred | Dev-only feature |
-| Example: custom post-processing shader | Deferred | Needs GLFW build environment |
+| Shader hot-reload for development | Done | `ShaderReloader` with polling-based file watching |
+| Example: custom post-processing shader | Done | `cmd/shader/main.go` — time-varying color effect |
 
 **Exit criteria**: users can write and apply custom Kage or GLSL shaders to draw calls.
 
@@ -260,8 +267,10 @@ raw GLSL. Kage transpiler parses Go-syntax shader source via `go/parser`,
 extracts uniforms and Fragment function, emits GLSL 330 core with image helper
 functions (imageSrc0-3At, bounds checking, origin/size). SpritePass supports
 per-batch shader switching via ShaderResolver. Uniforms can be set via direct
-methods or Ebitengine-compatible `map[string]any`. Coverage: shaderir 83.8%,
-root package 97.2%, pipeline 85.3%.
+methods or Ebitengine-compatible `map[string]any`. `ShaderReloader` for
+development-time hot-reload: polling-based file watching (mod time), keeps
+old shader on compile error. Coverage: shaderir 83.8%, root package 94.5%,
+pipeline 90.6%.
 
 ---
 
@@ -278,7 +287,7 @@ Goal: remaining Ebitengine 2D feature parity.
 | Window resize handling + `Layout` re-evaluation | Done | Already working from M3 |
 | High-DPI / device scale factor | Done | Already working from M3 |
 | Multiple windows (stretch goal) | Deferred | Phase 2 |
-| Context loss recovery (mobile/web) | Deferred | Godot-inspired command replay |
+| Context loss recovery (mobile/web) | Done | `ResourceTracker` with command replay for textures and shaders |
 | `FUTURE_RENDER_BACKEND` env var selection | Done | `Backend()` reads FUTURE_RENDER_BACKEND, defaults to "auto" |
 | Vsync toggle at runtime | Done | `SetVsyncEnabled`/`IsVsyncEnabled` already in M3 |
 | `Image.Clear()` | Done | Fills with transparent black |
@@ -292,7 +301,10 @@ sprite pass iterates render target groups with BeginRenderPass/EndRenderPass
 per target. ReadPixels via `glGetTexImage` in OpenGL backend. ColorM wired to
 fragment shader via `uColorBody` (mat4) and `uColorTranslation` (vec4) uniforms
 set per-batch. SetScreenClearedEveryFrame as atomic bool. FUTURE_RENDER_BACKEND
-env var for backend selection. Coverage: root 97.4%, pipeline 90.6%, batch 97.5%.
+env var for backend selection. `ResourceTracker` for context loss recovery:
+Godot-inspired command replay records texture/shader creation parameters and
+replays them against a new Device after context loss. Coverage: root 94.5%,
+pipeline 90.6%, batch 97.5%.
 
 ---
 
