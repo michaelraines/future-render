@@ -1,12 +1,77 @@
 package futurerender
 
 import (
+	goimage "image"
+	"image/color"
 	"testing"
 
 	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/michaelraines/future-render/internal/batch"
 	fmath "github.com/michaelraines/future-render/math"
 )
+
+// --- Mock device for testing GPU texture lifecycle ---
+
+type mockTexture struct {
+	w, h     int
+	fmt      backend.TextureFormat
+	disposed bool
+}
+
+func (t *mockTexture) Upload(_ []byte, _ int)                   {}
+func (t *mockTexture) UploadRegion(_ []byte, _, _, _, _, _ int) {}
+func (t *mockTexture) Width() int                               { return t.w }
+func (t *mockTexture) Height() int                              { return t.h }
+func (t *mockTexture) Format() backend.TextureFormat            { return t.fmt }
+func (t *mockTexture) Dispose()                                 { t.disposed = true }
+
+type mockDevice struct {
+	textures []*mockTexture
+}
+
+func (d *mockDevice) Init(_ backend.DeviceConfig) error { return nil }
+func (d *mockDevice) Dispose()                          {}
+func (d *mockDevice) BeginFrame()                       {}
+func (d *mockDevice) EndFrame()                         {}
+func (d *mockDevice) NewTexture(desc backend.TextureDescriptor) (backend.Texture, error) {
+	t := &mockTexture{w: desc.Width, h: desc.Height, fmt: desc.Format}
+	d.textures = append(d.textures, t)
+	return t, nil
+}
+func (d *mockDevice) NewBuffer(_ backend.BufferDescriptor) (backend.Buffer, error) {
+	return nil, nil
+}
+func (d *mockDevice) NewShader(_ backend.ShaderDescriptor) (backend.Shader, error) {
+	return nil, nil
+}
+func (d *mockDevice) NewRenderTarget(_ backend.RenderTargetDescriptor) (backend.RenderTarget, error) {
+	return nil, nil
+}
+func (d *mockDevice) NewPipeline(_ backend.PipelineDescriptor) (backend.Pipeline, error) {
+	return nil, nil
+}
+func (d *mockDevice) Capabilities() backend.DeviceCapabilities {
+	return backend.DeviceCapabilities{MaxTextureSize: 4096}
+}
+
+// withMockRenderer sets up a globalRenderer with a mock device and batcher,
+// restoring the previous state on cleanup.
+func withMockRenderer(t *testing.T) (dev *mockDevice, registered map[uint32]backend.Texture) {
+	t.Helper()
+	dev = &mockDevice{}
+	registered = make(map[uint32]backend.Texture)
+	rend := &renderer{
+		device:  dev,
+		batcher: batch.NewBatcher(1024, 1024),
+		registerTexture: func(id uint32, tex backend.Texture) {
+			registered[id] = tex
+		},
+	}
+	old := globalRenderer
+	globalRenderer = rend
+	t.Cleanup(func() { globalRenderer = old })
+	return dev, registered
+}
 
 func TestNewImageNoRenderer(t *testing.T) {
 	// Without a renderer, NewImage should still return a valid Image.
@@ -24,6 +89,121 @@ func TestNewImageNoRenderer(t *testing.T) {
 	}
 	if img.texture != nil {
 		t.Error("texture should be nil without a renderer")
+	}
+}
+
+func TestNewImageWithDevice(t *testing.T) {
+	dev, registered := withMockRenderer(t)
+
+	img := NewImage(64, 128)
+	if img.texture == nil {
+		t.Fatal("texture should be allocated with a mock device")
+	}
+	if img.textureID == 0 {
+		t.Error("textureID should be non-zero")
+	}
+
+	// Verify texture was registered for the sprite pass to resolve.
+	if registered[img.textureID] == nil {
+		t.Error("texture should be registered")
+	}
+
+	// Verify the mock device created a texture with correct dimensions.
+	mt := dev.textures[len(dev.textures)-1]
+	if mt.w != 64 || mt.h != 128 {
+		t.Errorf("mock texture size: got %dx%d, want 64x128", mt.w, mt.h)
+	}
+}
+
+func TestNewImageFromImageWithDevice(t *testing.T) {
+	dev, registered := withMockRenderer(t)
+
+	// Create a small Go image.
+	src := goimage.NewRGBA(goimage.Rect(0, 0, 32, 32))
+	src.Set(0, 0, color.RGBA{R: 255, A: 255})
+
+	img := NewImageFromImage(src)
+	if img.texture == nil {
+		t.Fatal("texture should be allocated")
+	}
+	w, h := img.Size()
+	if w != 32 || h != 32 {
+		t.Errorf("expected 32x32, got %dx%d", w, h)
+	}
+	if img.textureID == 0 {
+		t.Error("textureID should be non-zero")
+	}
+	if registered[img.textureID] == nil {
+		t.Error("texture should be registered")
+	}
+
+	mt := dev.textures[len(dev.textures)-1]
+	if mt.w != 32 || mt.h != 32 {
+		t.Errorf("mock texture size: got %dx%d, want 32x32", mt.w, mt.h)
+	}
+}
+
+func TestNewImageFromImageNonRGBA(t *testing.T) {
+	withMockRenderer(t)
+
+	// Create a non-RGBA image (NRGBA). NewImageFromImage should convert it.
+	src := goimage.NewNRGBA(goimage.Rect(0, 0, 16, 16))
+	src.Set(0, 0, color.NRGBA{R: 128, G: 64, B: 32, A: 200})
+
+	img := NewImageFromImage(src)
+	if img.texture == nil {
+		t.Fatal("texture should be allocated for non-RGBA source")
+	}
+	w, h := img.Size()
+	if w != 16 || h != 16 {
+		t.Errorf("expected 16x16, got %dx%d", w, h)
+	}
+}
+
+func TestDisposeReleasesTexture(t *testing.T) {
+	dev, _ := withMockRenderer(t)
+
+	img := NewImage(32, 32)
+	if img.texture == nil {
+		t.Fatal("texture should be allocated")
+	}
+
+	mt := dev.textures[len(dev.textures)-1]
+	if mt.disposed {
+		t.Fatal("texture should not be disposed yet")
+	}
+
+	img.Dispose()
+	if !img.disposed {
+		t.Error("image should be disposed")
+	}
+	if !mt.disposed {
+		t.Error("GPU texture should be disposed when image is disposed")
+	}
+	if img.texture != nil {
+		t.Error("texture reference should be nil after dispose")
+	}
+}
+
+func TestDisposeIdempotent(t *testing.T) {
+	withMockRenderer(t)
+
+	img := NewImage(8, 8)
+	img.Dispose()
+	img.Dispose() // should not panic or double-free
+	if !img.disposed {
+		t.Error("image should remain disposed")
+	}
+}
+
+func TestAllocTextureIDMonotonic(t *testing.T) {
+	withMockRenderer(t)
+
+	id1 := globalRenderer.allocTextureID()
+	id2 := globalRenderer.allocTextureID()
+	id3 := globalRenderer.allocTextureID()
+	if id1 >= id2 || id2 >= id3 {
+		t.Errorf("texture IDs should be monotonically increasing: %d, %d, %d", id1, id2, id3)
 	}
 }
 
