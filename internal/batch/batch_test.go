@@ -3,8 +3,9 @@ package batch
 import (
 	"testing"
 
-	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/stretchr/testify/require"
+
+	"github.com/michaelraines/future-render/internal/backend"
 )
 
 func TestBatcherMerge(t *testing.T) {

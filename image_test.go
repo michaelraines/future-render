@@ -3,7 +3,10 @@ package futurerender
 import (
 	goimage "image"
 	"image/color"
+	"math"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/michaelraines/future-render/internal/backend"
 	"github.com/michaelraines/future-render/internal/batch"
@@ -73,116 +76,95 @@ func withMockRenderer(t *testing.T) (dev *mockDevice, registered map[uint32]back
 	return dev, registered
 }
 
+// withBatchRenderer sets up a globalRenderer with a batcher but no device,
+// restoring the previous state on cleanup.
+func withBatchRenderer(t *testing.T, whiteTexID uint32) *batch.Batcher {
+	t.Helper()
+	b := batch.NewBatcher(1024, 1024)
+	rend := &renderer{
+		batcher:        b,
+		whiteTextureID: whiteTexID,
+	}
+	old := globalRenderer
+	globalRenderer = rend
+	t.Cleanup(func() { globalRenderer = old })
+	return b
+}
+
 func TestNewImageNoRenderer(t *testing.T) {
-	// Without a renderer, NewImage should still return a valid Image.
 	old := globalRenderer
 	globalRenderer = nil
 	defer func() { globalRenderer = old }()
 
 	img := NewImage(100, 200)
-	if img == nil {
-		t.Fatal("NewImage returned nil")
-	}
+	require.NotNil(t, img, "NewImage returned nil")
+
 	w, h := img.Size()
-	if w != 100 || h != 200 {
-		t.Errorf("expected 100x200, got %dx%d", w, h)
-	}
-	if img.texture != nil {
-		t.Error("texture should be nil without a renderer")
-	}
+	require.Equal(t, 100, w)
+	require.Equal(t, 200, h)
+	require.Nil(t, img.texture, "texture should be nil without a renderer")
 }
 
 func TestNewImageWithDevice(t *testing.T) {
 	dev, registered := withMockRenderer(t)
 
 	img := NewImage(64, 128)
-	if img.texture == nil {
-		t.Fatal("texture should be allocated with a mock device")
-	}
-	if img.textureID == 0 {
-		t.Error("textureID should be non-zero")
-	}
+	require.NotNil(t, img.texture, "texture should be allocated with a mock device")
+	require.NotEqual(t, uint32(0), img.textureID, "textureID should be non-zero")
+	require.NotNil(t, registered[img.textureID], "texture should be registered")
 
-	// Verify texture was registered for the sprite pass to resolve.
-	if registered[img.textureID] == nil {
-		t.Error("texture should be registered")
-	}
-
-	// Verify the mock device created a texture with correct dimensions.
 	mt := dev.textures[len(dev.textures)-1]
-	if mt.w != 64 || mt.h != 128 {
-		t.Errorf("mock texture size: got %dx%d, want 64x128", mt.w, mt.h)
-	}
+	require.Equal(t, 64, mt.w)
+	require.Equal(t, 128, mt.h)
 }
 
 func TestNewImageFromImageWithDevice(t *testing.T) {
 	dev, registered := withMockRenderer(t)
 
-	// Create a small Go image.
 	src := goimage.NewRGBA(goimage.Rect(0, 0, 32, 32))
 	src.Set(0, 0, color.RGBA{R: 255, A: 255})
 
 	img := NewImageFromImage(src)
-	if img.texture == nil {
-		t.Fatal("texture should be allocated")
-	}
+	require.NotNil(t, img.texture, "texture should be allocated")
+
 	w, h := img.Size()
-	if w != 32 || h != 32 {
-		t.Errorf("expected 32x32, got %dx%d", w, h)
-	}
-	if img.textureID == 0 {
-		t.Error("textureID should be non-zero")
-	}
-	if registered[img.textureID] == nil {
-		t.Error("texture should be registered")
-	}
+	require.Equal(t, 32, w)
+	require.Equal(t, 32, h)
+	require.NotEqual(t, uint32(0), img.textureID, "textureID should be non-zero")
+	require.NotNil(t, registered[img.textureID], "texture should be registered")
 
 	mt := dev.textures[len(dev.textures)-1]
-	if mt.w != 32 || mt.h != 32 {
-		t.Errorf("mock texture size: got %dx%d, want 32x32", mt.w, mt.h)
-	}
+	require.Equal(t, 32, mt.w)
+	require.Equal(t, 32, mt.h)
 }
 
 func TestNewImageFromImageNonRGBA(t *testing.T) {
 	withMockRenderer(t)
 
-	// Create a non-RGBA image (NRGBA). NewImageFromImage should convert it.
 	src := goimage.NewNRGBA(goimage.Rect(0, 0, 16, 16))
 	src.Set(0, 0, color.NRGBA{R: 128, G: 64, B: 32, A: 200})
 
 	img := NewImageFromImage(src)
-	if img.texture == nil {
-		t.Fatal("texture should be allocated for non-RGBA source")
-	}
+	require.NotNil(t, img.texture, "texture should be allocated for non-RGBA source")
+
 	w, h := img.Size()
-	if w != 16 || h != 16 {
-		t.Errorf("expected 16x16, got %dx%d", w, h)
-	}
+	require.Equal(t, 16, w)
+	require.Equal(t, 16, h)
 }
 
 func TestDisposeReleasesTexture(t *testing.T) {
 	dev, _ := withMockRenderer(t)
 
 	img := NewImage(32, 32)
-	if img.texture == nil {
-		t.Fatal("texture should be allocated")
-	}
+	require.NotNil(t, img.texture, "texture should be allocated")
 
 	mt := dev.textures[len(dev.textures)-1]
-	if mt.disposed {
-		t.Fatal("texture should not be disposed yet")
-	}
+	require.False(t, mt.disposed, "texture should not be disposed yet")
 
 	img.Dispose()
-	if !img.disposed {
-		t.Error("image should be disposed")
-	}
-	if !mt.disposed {
-		t.Error("GPU texture should be disposed when image is disposed")
-	}
-	if img.texture != nil {
-		t.Error("texture reference should be nil after dispose")
-	}
+	require.True(t, img.disposed, "image should be disposed")
+	require.True(t, mt.disposed, "GPU texture should be disposed when image is disposed")
+	require.Nil(t, img.texture, "texture reference should be nil after dispose")
 }
 
 func TestDisposeIdempotent(t *testing.T) {
@@ -191,9 +173,7 @@ func TestDisposeIdempotent(t *testing.T) {
 	img := NewImage(8, 8)
 	img.Dispose()
 	img.Dispose() // should not panic or double-free
-	if !img.disposed {
-		t.Error("image should remain disposed")
-	}
+	require.True(t, img.disposed, "image should remain disposed")
 }
 
 func TestAllocTextureIDMonotonic(t *testing.T) {
@@ -202,9 +182,8 @@ func TestAllocTextureIDMonotonic(t *testing.T) {
 	id1 := globalRenderer.allocTextureID()
 	id2 := globalRenderer.allocTextureID()
 	id3 := globalRenderer.allocTextureID()
-	if id1 >= id2 || id2 >= id3 {
-		t.Errorf("texture IDs should be monotonically increasing: %d, %d, %d", id1, id2, id3)
-	}
+	require.True(t, id1 < id2, "texture IDs should be monotonically increasing")
+	require.True(t, id2 < id3, "texture IDs should be monotonically increasing")
 }
 
 func TestSubImageUVMapping(t *testing.T) {
@@ -214,28 +193,21 @@ func TestSubImageUVMapping(t *testing.T) {
 		u0:        0, v0: 0, u1: 1, v1: 1,
 	}
 
-	// Sub-image: top-left quarter (0,0)-(128,128).
 	sub := img.SubImage(fmath.NewRect(0, 0, 128, 128))
-	if sub.width != 128 || sub.height != 128 {
-		t.Errorf("expected 128x128, got %dx%d", sub.width, sub.height)
-	}
-	if sub.textureID != 42 {
-		t.Errorf("expected textureID 42, got %d", sub.textureID)
-	}
-	if sub.parent != img {
-		t.Error("sub-image should reference parent")
-	}
-	assertFloat32(t, "u0", sub.u0, 0)
-	assertFloat32(t, "v0", sub.v0, 0)
-	assertFloat32(t, "u1", sub.u1, 0.5)
-	assertFloat32(t, "v1", sub.v1, 0.5)
+	require.Equal(t, 128, sub.width)
+	require.Equal(t, 128, sub.height)
+	require.Equal(t, uint32(42), sub.textureID)
+	require.Equal(t, img, sub.parent, "sub-image should reference parent")
+	require.InDelta(t, float32(0), sub.u0, 1e-6)
+	require.InDelta(t, float32(0), sub.v0, 1e-6)
+	require.InDelta(t, float32(0.5), sub.u1, 1e-6)
+	require.InDelta(t, float32(0.5), sub.v1, 1e-6)
 
-	// Sub-image: bottom-right quarter (128,128)-(256,256).
 	sub2 := img.SubImage(fmath.NewRect(128, 128, 128, 128))
-	assertFloat32(t, "u0", sub2.u0, 0.5)
-	assertFloat32(t, "v0", sub2.v0, 0.5)
-	assertFloat32(t, "u1", sub2.u1, 1.0)
-	assertFloat32(t, "v1", sub2.v1, 1.0)
+	require.InDelta(t, float32(0.5), sub2.u0, 1e-6)
+	require.InDelta(t, float32(0.5), sub2.v0, 1e-6)
+	require.InDelta(t, float32(1.0), sub2.u1, 1e-6)
+	require.InDelta(t, float32(1.0), sub2.v1, 1e-6)
 }
 
 func TestSubImageOfSubImage(t *testing.T) {
@@ -245,26 +217,19 @@ func TestSubImageOfSubImage(t *testing.T) {
 		u0:        0, v0: 0, u1: 1, v1: 1,
 	}
 
-	// First sub: top-left quarter.
 	sub := root.SubImage(fmath.NewRect(0, 0, 128, 128))
-
-	// Sub of sub: top-left quarter of the sub-image.
 	subsub := sub.SubImage(fmath.NewRect(0, 0, 64, 64))
-	if subsub.parent != root {
-		t.Error("nested sub-image should reference root parent")
-	}
-	assertFloat32(t, "u0", subsub.u0, 0)
-	assertFloat32(t, "v0", subsub.v0, 0)
-	assertFloat32(t, "u1", subsub.u1, 0.25)
-	assertFloat32(t, "v1", subsub.v1, 0.25)
+	require.Equal(t, root, subsub.parent, "nested sub-image should reference root parent")
+	require.InDelta(t, float32(0), subsub.u0, 1e-6)
+	require.InDelta(t, float32(0), subsub.v0, 1e-6)
+	require.InDelta(t, float32(0.25), subsub.u1, 1e-6)
+	require.InDelta(t, float32(0.25), subsub.v1, 1e-6)
 }
 
 func TestDispose(t *testing.T) {
 	img := NewImage(10, 10)
 	img.Dispose()
-	if !img.disposed {
-		t.Error("image should be disposed")
-	}
+	require.True(t, img.disposed, "image should be disposed")
 
 	// DrawImage on disposed image should be a no-op.
 	img.DrawImage(NewImage(5, 5), nil) // should not panic
@@ -278,20 +243,11 @@ func TestSubImageDisposeDoesNotReleaseParent(t *testing.T) {
 	}
 	sub := root.SubImage(fmath.NewRect(0, 0, 32, 32))
 	sub.Dispose()
-	if root.disposed {
-		t.Error("disposing sub-image should not dispose root")
-	}
+	require.False(t, root.disposed, "disposing sub-image should not dispose root")
 }
 
 func TestDrawImageSubmitsToBatcher(t *testing.T) {
-	b := batch.NewBatcher(1024, 1024)
-	rend := &renderer{
-		batcher:        b,
-		whiteTextureID: 1,
-	}
-	old := globalRenderer
-	globalRenderer = rend
-	defer func() { globalRenderer = old }()
+	b := withBatchRenderer(t, 1)
 
 	dst := &Image{
 		width: 320, height: 240,
@@ -307,43 +263,26 @@ func TestDrawImageSubmitsToBatcher(t *testing.T) {
 	opts.GeoM.Translate(100, 50)
 	dst.DrawImage(src, opts)
 
-	if b.CommandCount() != 1 {
-		t.Fatalf("expected 1 command, got %d", b.CommandCount())
-	}
+	require.Equal(t, 1, b.CommandCount())
 
-	// Flush and verify batch contents.
 	batches := b.Flush()
-	if len(batches) != 1 {
-		t.Fatalf("expected 1 batch, got %d", len(batches))
-	}
+	require.Equal(t, 1, len(batches))
+
 	got := batches[0]
-	if len(got.Vertices) != 4 {
-		t.Errorf("expected 4 vertices, got %d", len(got.Vertices))
-	}
-	if len(got.Indices) != 6 {
-		t.Errorf("expected 6 indices, got %d", len(got.Indices))
-	}
+	require.Equal(t, 4, len(got.Vertices))
+	require.Equal(t, 6, len(got.Indices))
 
-	// Verify the translated position of first vertex (top-left).
 	v0 := got.Vertices[0]
-	assertFloat32(t, "v0.PosX", v0.PosX, 100)
-	assertFloat32(t, "v0.PosY", v0.PosY, 50)
+	require.InDelta(t, float32(100), v0.PosX, 1e-6)
+	require.InDelta(t, float32(50), v0.PosY, 1e-6)
 
-	// Verify the bottom-right vertex.
 	v2 := got.Vertices[2]
-	assertFloat32(t, "v2.PosX", v2.PosX, 164)
-	assertFloat32(t, "v2.PosY", v2.PosY, 114)
+	require.InDelta(t, float32(164), v2.PosX, 1e-6)
+	require.InDelta(t, float32(114), v2.PosY, 1e-6)
 }
 
 func TestDrawImageColorScale(t *testing.T) {
-	b := batch.NewBatcher(1024, 1024)
-	rend := &renderer{
-		batcher:        b,
-		whiteTextureID: 1,
-	}
-	old := globalRenderer
-	globalRenderer = rend
-	defer func() { globalRenderer = old }()
+	b := withBatchRenderer(t, 1)
 
 	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
 	src := &Image{width: 32, height: 32, textureID: 2, u0: 0, v0: 0, u1: 1, v1: 1}
@@ -355,58 +294,41 @@ func TestDrawImageColorScale(t *testing.T) {
 
 	batches := b.Flush()
 	v := batches[0].Vertices[0]
-	assertFloat32(t, "R", v.R, 0.5)
-	assertFloat32(t, "G", v.G, 0.5)
-	assertFloat32(t, "B", v.B, 0.5)
-	assertFloat32(t, "A", v.A, 0.5)
+	require.InDelta(t, float32(0.5), v.R, 1e-6)
+	require.InDelta(t, float32(0.5), v.G, 1e-6)
+	require.InDelta(t, float32(0.5), v.B, 1e-6)
+	require.InDelta(t, float32(0.5), v.A, 1e-6)
 }
 
 func TestDrawImageDefaultColorIsWhite(t *testing.T) {
-	b := batch.NewBatcher(1024, 1024)
-	rend := &renderer{
-		batcher:        b,
-		whiteTextureID: 1,
-	}
-	old := globalRenderer
-	globalRenderer = rend
-	defer func() { globalRenderer = old }()
+	b := withBatchRenderer(t, 1)
 
 	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
 	src := &Image{width: 32, height: 32, textureID: 2, u0: 0, v0: 0, u1: 1, v1: 1}
 
-	dst.DrawImage(src, nil) // nil opts → default color
+	dst.DrawImage(src, nil) // nil opts -> default color
 
 	batches := b.Flush()
 	v := batches[0].Vertices[0]
-	assertFloat32(t, "R", v.R, 1)
-	assertFloat32(t, "G", v.G, 1)
-	assertFloat32(t, "B", v.B, 1)
-	assertFloat32(t, "A", v.A, 1)
+	require.InDelta(t, float32(1), v.R, 1e-6)
+	require.InDelta(t, float32(1), v.G, 1e-6)
+	require.InDelta(t, float32(1), v.B, 1e-6)
+	require.InDelta(t, float32(1), v.A, 1e-6)
 }
 
 func TestFillSubmitsToBatcher(t *testing.T) {
-	b := batch.NewBatcher(1024, 1024)
-	rend := &renderer{
-		batcher:        b,
-		whiteTextureID: 99,
-	}
-	old := globalRenderer
-	globalRenderer = rend
-	defer func() { globalRenderer = old }()
+	b := withBatchRenderer(t, 99)
 
 	img := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
 	img.Fill(fmath.Color{R: 1, G: 0, B: 0, A: 1})
 
 	batches := b.Flush()
-	if len(batches) != 1 {
-		t.Fatalf("expected 1 batch, got %d", len(batches))
-	}
-	if batches[0].TextureID != 99 {
-		t.Errorf("expected white texture ID 99, got %d", batches[0].TextureID)
-	}
+	require.Equal(t, 1, len(batches))
+	require.Equal(t, uint32(99), batches[0].TextureID)
+
 	v := batches[0].Vertices[0]
-	assertFloat32(t, "R", v.R, 1)
-	assertFloat32(t, "G", v.G, 0)
+	require.InDelta(t, float32(1), v.R, 1e-6)
+	require.InDelta(t, float32(0), v.G, 1e-6)
 }
 
 func TestBlendToBackend(t *testing.T) {
@@ -420,16 +342,287 @@ func TestBlendToBackend(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got := blendToBackend(tt.pub)
-		if got != tt.want {
-			t.Errorf("blendToBackend(%d) = %d, want %d", tt.pub, got, tt.want)
-		}
+		require.Equal(t, tt.want, got)
 	}
 }
 
-func assertFloat32(t *testing.T, name string, got, want float32) {
-	t.Helper()
-	const eps = 1e-5
-	if diff := got - want; diff > eps || diff < -eps {
-		t.Errorf("%s: got %g, want %g", name, got, want)
+// --- New tests ---
+
+func TestBounds(t *testing.T) {
+	img := NewImage(320, 240)
+	b := img.Bounds()
+	require.InDelta(t, 0.0, b.Min.X, 1e-6)
+	require.InDelta(t, 0.0, b.Min.Y, 1e-6)
+	require.InDelta(t, 320.0, b.Max.X, 1e-6)
+	require.InDelta(t, 240.0, b.Max.Y, 1e-6)
+}
+
+func TestNewGeoM(t *testing.T) {
+	g := NewGeoM()
+	x, y := g.Apply(10, 20)
+	require.InDelta(t, 10.0, x, 1e-6)
+	require.InDelta(t, 20.0, y, 1e-6)
+}
+
+func TestGeoMScale(t *testing.T) {
+	g := NewGeoM()
+	g.Scale(2, 3)
+	x, y := g.Apply(10, 20)
+	require.InDelta(t, 20.0, x, 1e-6)
+	require.InDelta(t, 60.0, y, 1e-6)
+}
+
+func TestGeoMRotate(t *testing.T) {
+	g := NewGeoM()
+	g.Rotate(math.Pi / 2)
+	x, y := g.Apply(1, 0)
+	require.InDelta(t, 0.0, x, 1e-6)
+	require.InDelta(t, 1.0, y, 1e-6)
+}
+
+func TestGeoMSkew(t *testing.T) {
+	g := NewGeoM()
+	g.Skew(1, 0)
+	x, y := g.Apply(0, 5)
+	require.InDelta(t, 5.0, x, 1e-6)
+	require.InDelta(t, 5.0, y, 1e-6)
+}
+
+func TestGeoMConcat(t *testing.T) {
+	g1 := NewGeoM()
+	g1.Scale(2, 2)
+
+	g2 := NewGeoM()
+	g2.Translate(10, 20)
+
+	g1.Concat(g2)
+	x, y := g1.Apply(5, 5)
+	require.InDelta(t, 20.0, x, 1e-6)
+	require.InDelta(t, 30.0, y, 1e-6)
+}
+
+func TestGeoMReset(t *testing.T) {
+	g := NewGeoM()
+	g.Scale(5, 5)
+	g.Reset()
+	x, y := g.Apply(10, 20)
+	require.InDelta(t, 10.0, x, 1e-6)
+	require.InDelta(t, 20.0, y, 1e-6)
+}
+
+func TestGeoMMat3(t *testing.T) {
+	g := NewGeoM()
+	m := g.Mat3()
+	identity := fmath.Mat3Identity()
+	require.Equal(t, identity, m)
+}
+
+func TestColorFromRGBA(t *testing.T) {
+	c := ColorFromRGBA(0.1, 0.2, 0.3, 0.4)
+	require.InDelta(t, 0.1, c.R, 1e-6)
+	require.InDelta(t, 0.2, c.G, 1e-6)
+	require.InDelta(t, 0.3, c.B, 1e-6)
+	require.InDelta(t, 0.4, c.A, 1e-6)
+}
+
+func TestDrawTrianglesSubmitsToBatcher(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 64, height: 64, textureID: 7, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	verts := []Vertex{
+		{DstX: 0, DstY: 0, SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 64, DstY: 0, SrcX: 1, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 64, DstY: 64, SrcX: 1, SrcY: 1, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
 	}
+	indices := []uint16{0, 1, 2}
+
+	dst.DrawTriangles(verts, indices, src, nil)
+
+	require.Equal(t, 1, b.CommandCount())
+
+	batches := b.Flush()
+	require.Equal(t, 1, len(batches))
+	require.Equal(t, 3, len(batches[0].Vertices))
+	require.Equal(t, 3, len(batches[0].Indices))
+	require.Equal(t, uint32(7), batches[0].TextureID)
+}
+
+func TestDrawTrianglesWithOptions(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 64, height: 64, textureID: 3, u0: 0, v0: 0, u1: 1, v1: 1}
+
+	verts := []Vertex{
+		{DstX: 0, DstY: 0, SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 0, ColorB: 0, ColorA: 1},
+		{DstX: 10, DstY: 0, SrcX: 1, SrcY: 0, ColorR: 1, ColorG: 0, ColorB: 0, ColorA: 1},
+		{DstX: 10, DstY: 10, SrcX: 1, SrcY: 1, ColorR: 1, ColorG: 0, ColorB: 0, ColorA: 1},
+	}
+	indices := []uint16{0, 1, 2}
+
+	opts := &DrawTrianglesOptions{Blend: BlendAdditive}
+	dst.DrawTriangles(verts, indices, src, opts)
+
+	batches := b.Flush()
+	require.Equal(t, 1, len(batches))
+	require.Equal(t, backend.BlendAdditive, batches[0].BlendMode)
+}
+
+func TestDrawTrianglesNilSrc(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	verts := []Vertex{
+		{DstX: 0, DstY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: 10, DstY: 10, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+	}
+	indices := []uint16{0, 1, 2}
+
+	dst.DrawTriangles(verts, indices, nil, nil)
+
+	batches := b.Flush()
+	require.Equal(t, 1, len(batches))
+	require.Equal(t, uint32(0), batches[0].TextureID)
+}
+
+func TestDrawTrianglesDisposedIsNoop(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 320, height: 240, disposed: true, u0: 0, v0: 0, u1: 1, v1: 1}
+	verts := []Vertex{{DstX: 0, DstY: 0}}
+	indices := []uint16{0}
+
+	dst.DrawTriangles(verts, indices, nil, nil)
+	require.Equal(t, 0, b.CommandCount())
+}
+
+func TestFillDisposed(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	img := &Image{width: 100, height: 100, disposed: true, u0: 0, v0: 0, u1: 1, v1: 1}
+	img.Fill(fmath.Color{R: 1, G: 0, B: 0, A: 1})
+	require.Equal(t, 0, b.CommandCount())
+}
+
+func TestDrawImageNilSrc(t *testing.T) {
+	withBatchRenderer(t, 1)
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	// Should not panic.
+	dst.DrawImage(nil, nil)
+}
+
+func TestDrawImageDisposedSrc(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, disposed: true, u0: 0, v0: 0, u1: 1, v1: 1}
+	dst.DrawImage(src, nil)
+	require.Equal(t, 0, b.CommandCount())
+}
+
+func TestDrawImageNoRenderer(t *testing.T) {
+	old := globalRenderer
+	globalRenderer = nil
+	defer func() { globalRenderer = old }()
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	src := &Image{width: 32, height: 32, u0: 0, v0: 0, u1: 1, v1: 1}
+	// Should not panic.
+	dst.DrawImage(src, nil)
+}
+
+func TestFillNoRenderer(t *testing.T) {
+	old := globalRenderer
+	globalRenderer = nil
+	defer func() { globalRenderer = old }()
+
+	img := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	// Should not panic.
+	img.Fill(fmath.Color{R: 1, G: 0, B: 0, A: 1})
+}
+
+func TestDrawTrianglesNoRenderer(t *testing.T) {
+	old := globalRenderer
+	globalRenderer = nil
+	defer func() { globalRenderer = old }()
+
+	dst := &Image{width: 100, height: 100, u0: 0, v0: 0, u1: 1, v1: 1}
+	verts := []Vertex{{DstX: 0, DstY: 0}}
+	indices := []uint16{0}
+	// Should not panic.
+	dst.DrawTriangles(verts, indices, nil, nil)
+}
+
+func TestGeoMZeroValueActsAsIdentity(t *testing.T) {
+	var g GeoM
+	x, y := g.Apply(7, 13)
+	require.InDelta(t, 7.0, x, 1e-6)
+	require.InDelta(t, 13.0, y, 1e-6)
+}
+
+func TestColorScaleOrDefault(t *testing.T) {
+	// Zero color should default to white.
+	r, g, b, a := colorScaleOrDefault(fmath.Color{})
+	require.InDelta(t, float32(1), r, 1e-6)
+	require.InDelta(t, float32(1), g, 1e-6)
+	require.InDelta(t, float32(1), b, 1e-6)
+	require.InDelta(t, float32(1), a, 1e-6)
+
+	// Non-zero color should be returned as-is.
+	r2, g2, b2, a2 := colorScaleOrDefault(fmath.Color{R: 0.2, G: 0.3, B: 0.4, A: 0.5})
+	require.InDelta(t, float32(0.2), r2, 1e-6)
+	require.InDelta(t, float32(0.3), g2, 1e-6)
+	require.InDelta(t, float32(0.4), b2, 1e-6)
+	require.InDelta(t, float32(0.5), a2, 1e-6)
+}
+
+func TestBlendToBackendUnknown(t *testing.T) {
+	// Unknown blend mode should default to SourceOver.
+	got := blendToBackend(BlendMode(999))
+	require.Equal(t, backend.BlendSourceOver, got)
+}
+
+func TestNewImageFromImageNoRenderer(t *testing.T) {
+	old := globalRenderer
+	globalRenderer = nil
+	defer func() { globalRenderer = old }()
+
+	src := goimage.NewRGBA(goimage.Rect(0, 0, 8, 8))
+	img := NewImageFromImage(src)
+	require.NotNil(t, img)
+	w, h := img.Size()
+	require.Equal(t, 8, w)
+	require.Equal(t, 8, h)
+	require.Nil(t, img.texture)
+}
+
+func TestDrawImageSubImage(t *testing.T) {
+	b := withBatchRenderer(t, 1)
+
+	parent := &Image{
+		width: 256, height: 256,
+		textureID: 10,
+		texture:   &mockTexture{w: 256, h: 256},
+		u0:        0, v0: 0, u1: 1, v1: 1,
+	}
+	sub := parent.SubImage(fmath.NewRect(0, 0, 128, 128))
+
+	dst := &Image{width: 320, height: 240, u0: 0, v0: 0, u1: 1, v1: 1}
+	dst.DrawImage(sub, nil)
+
+	batches := b.Flush()
+	require.Equal(t, 1, len(batches))
+	// The sub-image should use the parent's textureID.
+	require.Equal(t, uint32(10), batches[0].TextureID)
+	// UV coords should reflect the sub-image region.
+	v0 := batches[0].Vertices[0]
+	require.InDelta(t, float32(0), v0.TexU, 1e-6)
+	require.InDelta(t, float32(0), v0.TexV, 1e-6)
+	v2 := batches[0].Vertices[2]
+	require.InDelta(t, float32(0.5), v2.TexU, 1e-6)
+	require.InDelta(t, float32(0.5), v2.TexV, 1e-6)
 }
