@@ -55,6 +55,37 @@ There are no external Go dependencies yet (`go.mod` has only the standard
 library). When platform backends are added, they will use build tags
 (`-tags glfw`).
 
+### Known CI Limitation: Audio Packages Excluded
+
+The `audio/` package depends on `github.com/ebitengine/oto/v3`, which uses
+CGo and requires ALSA development headers (`libasound2-dev` / `alsa.pc`) on
+Linux. These headers are not installed in the CI environment, so **all audio
+packages (`audio/`, `audio/vorbis/`, `audio/wav/`) are excluded** from the
+default `make` targets (vet, lint, test, build, coverage).
+
+The exclusion is implemented in the `Makefile` via the `PKGS` and `LINT_PATHS`
+variables, which filter out packages matching `/audio`. The CI workflow
+(`.github/workflows/ci.yml`) delegates linting to `make lint` so it respects
+the same exclusion.
+
+**To resolve this in the future**, choose one of:
+1. **Install ALSA headers in CI** — add `sudo apt-get install -y libasound2-dev`
+   to the workflow, then remove the `grep -v /audio` filters from the Makefile.
+2. **Use a build tag** — gate audio packages behind `//go:build audio` (similar
+   to the `glfw` tag used by `cmd/` examples and platform code), so they are
+   excluded by default and only built/tested with `-tags audio`.
+3. **Use a pure-Go audio backend** — replace `oto/v3` with a backend that
+   doesn't require CGo, eliminating the system dependency entirely.
+
+Until resolved, to test audio locally you need ALSA headers installed:
+```bash
+# Ubuntu/Debian
+sudo apt-get install libasound2-dev
+
+# Then test audio packages directly
+go test ./audio/...
+```
+
 ## Architecture Rules
 
 These are non-negotiable. Violating them creates technical debt that compounds.
