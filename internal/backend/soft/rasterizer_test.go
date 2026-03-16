@@ -166,18 +166,30 @@ func TestSampleNearest(t *testing.T) {
 	require.InDelta(t, 1.0, float64(g2), 1e-2)
 }
 
-func TestEdgeFuncF64(t *testing.T) {
+func TestEdgeFuncFMA(t *testing.T) {
 	// CCW triangle: (0,0), (1,0), (0,1) → positive area
-	area := edgeFuncF64(0, 0, 1, 0, 0, 1)
+	area := edgeFuncFMA(0, 0, 1, 0, 0, 1)
 	require.InDelta(t, 1.0, area, 1e-12)
 
 	// CW triangle → negative area
-	area = edgeFuncF64(0, 0, 0, 1, 1, 0)
+	area = edgeFuncFMA(0, 0, 0, 1, 1, 0)
 	require.InDelta(t, -1.0, area, 1e-12)
 
 	// Degenerate (collinear) → zero
-	area = edgeFuncF64(0, 0, 1, 1, 2, 2)
+	area = edgeFuncFMA(0, 0, 1, 1, 2, 2)
 	require.InDelta(t, 0.0, area, 1e-12)
+}
+
+func TestMin3(t *testing.T) {
+	require.InDelta(t, 1.0, min3(1, 2, 3), 1e-12)
+	require.InDelta(t, 1.0, min3(3, 1, 2), 1e-12)
+	require.InDelta(t, 1.0, min3(2, 3, 1), 1e-12)
+}
+
+func TestMax3(t *testing.T) {
+	require.InDelta(t, 3.0, max3(1, 2, 3), 1e-12)
+	require.InDelta(t, 3.0, max3(3, 1, 2), 1e-12)
+	require.InDelta(t, 3.0, max3(2, 3, 1), 1e-12)
 }
 
 func TestSampleNearestOutOfBounds(t *testing.T) {
