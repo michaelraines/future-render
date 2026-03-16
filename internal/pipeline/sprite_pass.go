@@ -191,14 +191,17 @@ func (sp *SpritePass) beginTargetPass(enc backend.CommandEncoder, ctx *PassConte
 	}
 
 	loadAction := backend.LoadActionLoad
+	clearColor := [4]float32{0, 0, 0, 0}
 	if targetID == 0 {
-		// Screen target clears each frame.
+		// Screen target clears each frame to opaque black.
 		loadAction = backend.LoadActionClear
+		clearColor = [4]float32{0, 0, 0, 1}
 	}
 
 	enc.BeginRenderPass(backend.RenderPassDescriptor{
 		Target:      rt,
-		ClearColor:  [4]float32{0, 0, 0, 0},
+		ClearColor:  clearColor,
+		ClearDepth:  1.0,
 		LoadAction:  loadAction,
 		StoreAction: backend.StoreActionStore,
 	})
