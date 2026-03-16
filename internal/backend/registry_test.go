@@ -22,6 +22,7 @@ func (d *dummyDevice) NewRenderTarget(_ RenderTargetDescriptor) (RenderTarget, e
 }
 func (d *dummyDevice) NewPipeline(_ PipelineDescriptor) (Pipeline, error) { return nil, nil }
 func (d *dummyDevice) Capabilities() DeviceCapabilities                   { return DeviceCapabilities{} }
+func (d *dummyDevice) Encoder() CommandEncoder                            { return nil }
 
 func TestRegisterAndCreate(t *testing.T) {
 	resetRegistry()
@@ -75,4 +76,59 @@ func TestIsRegistered(t *testing.T) {
 
 	require.True(t, IsRegistered("exists"))
 	require.False(t, IsRegistered("nope"))
+}
+
+func TestResolveExplicitName(t *testing.T) {
+	resetRegistry()
+	defer resetRegistry()
+
+	Register("mybackend", func() Device { return &dummyDevice{} })
+
+	dev, name, err := Resolve("mybackend", []string{"other"})
+	require.NoError(t, err)
+	require.NotNil(t, dev)
+	require.Equal(t, "mybackend", name)
+}
+
+func TestResolveExplicitNameNotRegistered(t *testing.T) {
+	resetRegistry()
+	defer resetRegistry()
+
+	_, _, err := Resolve("missing", []string{"other"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing")
+}
+
+func TestResolveAutoFirstPreferred(t *testing.T) {
+	resetRegistry()
+	defer resetRegistry()
+
+	Register("first", func() Device { return &dummyDevice{} })
+	Register("second", func() Device { return &dummyDevice{} })
+
+	dev, name, err := Resolve("auto", []string{"first", "second"})
+	require.NoError(t, err)
+	require.NotNil(t, dev)
+	require.Equal(t, "first", name)
+}
+
+func TestResolveAutoSkipsUnregistered(t *testing.T) {
+	resetRegistry()
+	defer resetRegistry()
+
+	Register("second", func() Device { return &dummyDevice{} })
+
+	dev, name, err := Resolve("auto", []string{"first", "second"})
+	require.NoError(t, err)
+	require.NotNil(t, dev)
+	require.Equal(t, "second", name)
+}
+
+func TestResolveAutoNoneAvailable(t *testing.T) {
+	resetRegistry()
+	defer resetRegistry()
+
+	_, _, err := Resolve("auto", []string{"a", "b"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no preferred backend available")
 }

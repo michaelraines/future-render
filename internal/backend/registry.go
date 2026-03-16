@@ -55,6 +55,27 @@ func IsRegistered(name string) bool {
 	return ok
 }
 
+// Resolve selects a backend by name. If name is "auto", it tries each entry
+// in preferred order and returns the first registered backend. If none of the
+// preferred backends are registered, it returns an error. For any other name
+// it delegates to Create.
+func Resolve(name string, preferred []string) (Device, string, error) {
+	if name != "auto" {
+		dev, err := Create(name)
+		return dev, name, err
+	}
+	for _, p := range preferred {
+		if IsRegistered(p) {
+			dev, err := Create(p)
+			if err != nil {
+				return nil, "", err
+			}
+			return dev, p, nil
+		}
+	}
+	return nil, "", fmt.Errorf("backend: no preferred backend available (tried %v, registered: %v)", preferred, Available())
+}
+
 // resetRegistry clears all registered backends. For testing only.
 func resetRegistry() {
 	registryMu.Lock()

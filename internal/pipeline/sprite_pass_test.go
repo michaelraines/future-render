@@ -74,6 +74,7 @@ func (d *mockDevice) NewPipeline(_ backend.PipelineDescriptor) (backend.Pipeline
 func (d *mockDevice) Capabilities() backend.DeviceCapabilities {
 	return backend.DeviceCapabilities{MaxTextureSize: 4096}
 }
+func (d *mockDevice) Encoder() backend.CommandEncoder { return nil }
 
 // failingDevice fails on the Nth NewBuffer call.
 type failingDevice struct {
@@ -107,6 +108,7 @@ func (d *failingDevice) NewPipeline(_ backend.PipelineDescriptor) (backend.Pipel
 func (d *failingDevice) Capabilities() backend.DeviceCapabilities {
 	return backend.DeviceCapabilities{MaxTextureSize: 4096}
 }
+func (d *failingDevice) Encoder() backend.CommandEncoder { return nil }
 
 var errMockFail = fmt.Errorf("mock failure")
 
