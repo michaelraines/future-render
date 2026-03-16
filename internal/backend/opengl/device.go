@@ -1,4 +1,4 @@
-//go:build darwin || linux || freebsd
+//go:build darwin || linux || freebsd || windows
 
 // Package opengl implements the backend.Device interface using OpenGL 3.3 core.
 package opengl

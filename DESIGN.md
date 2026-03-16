@@ -172,7 +172,7 @@ availability, GPU API binding status, and shader language.
 | Backend | Platform | GPU Binding | Shader Language | Conformance |
 |---|---|---|---|---|
 | Software | All | N/A (CPU) | N/A | 10/10 |
-| OpenGL 3.3 | Desktop (Linux, Windows, macOS) | purego — production | GLSL 330 core | N/A (GPU) |
+| OpenGL 3.3 | Desktop (Linux, Windows, macOS) | purego (Unix) / x/sys/windows — production | GLSL 330 core | N/A (GPU) |
 | WebGL2 | Browser (WASM) | Soft-delegating | GLSL ES 3.00 | 10/10 |
 | Vulkan | Linux, Windows, Android | Soft-delegating | SPIR-V (planned) | 10/10 |
 | Metal | macOS, iOS | Soft-delegating | MSL (planned) | 10/10 |
