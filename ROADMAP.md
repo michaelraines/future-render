@@ -308,7 +308,7 @@ pipeline 90.6%, batch 97.5%.
 
 ---
 
-## Milestone 9 — Multi-Backend Support (In Progress)
+## Milestone 9 — Multi-Backend Support (Done)
 
 Goal: ship all planned GPU backends — WebGL2, Vulkan, Metal, WebGPU, and
 DirectX 12 — alongside the existing OpenGL 3.3 backend. Every backend
@@ -428,17 +428,27 @@ Windows-only backend using DirectX 12 for best native performance on Windows.
 | Win32 platform integration (`internal/platform/win32/`) | Planned | HWND creation via purego; alternative to GLFW on Windows |
 | Build tag `//go:build windows && dx12` | Planned | Windows-only |
 
-### 9g — Integration + Polish (Planned)
+### 9g — Integration + Polish (Done)
 
 Cross-backend validation, auto-detection, and documentation.
 
 | Task | Status | Notes |
 |---|---|---|
-| All backends pass conformance suite | Done | All 6 backends (soft, webgl, vulkan, metal, webgpu, dx12) pass 10/10 conformance scenes |
-| Auto-detection logic in `backend.Create("auto")` | Planned | Platform-aware: macOS→Metal, Windows→DX12 or Vulkan, Linux→Vulkan, browser→WebGPU→WebGL2, fallback→OpenGL |
-| `cmd/backends/main.go` example | Planned | Lists available backends, creates device with each, reports capabilities |
-| Backend comparison documentation | Planned | Feature matrix: which backends support which capabilities, platform availability |
-| CI matrix expansion | Planned | GitHub Actions: Linux (OpenGL+Vulkan+soft), macOS (Metal+OpenGL), Windows (DX12+Vulkan+OpenGL), WASM (WebGL2+WebGPU) |
+| All backends pass conformance suite | Done | All 7 backends (soft, opengl, webgl, vulkan, metal, webgpu, dx12) pass 10/10 conformance scenes |
+| Auto-detection logic in `backend.Resolve("auto")` | Done | Platform-aware preference lists: macOS→Metal, Windows→DX12, Linux→Vulkan, browser→WebGPU→WebGL2, fallback→OpenGL |
+| `cmd/backends/main.go` example | Done | Lists registered backends, creates device for each, prints capability table |
+| Backend comparison documentation | Done | Feature matrix added to DESIGN.md: platform availability, GPU binding status, shader language, capabilities |
+| CI matrix expansion | Done | GitHub Actions: Linux (full CI), macOS and Windows (test + build) |
+
+**Exit criteria**: all backends registered, auto-detected per platform, documented,
+and tested across platforms in CI.
+
+**Completed**: `backend.Resolve("auto", preferred)` selects backends using
+platform-specific preference lists (macOS→Metal→Vulkan→OpenGL→Soft, etc.).
+`cmd/backends` prints a capability table for all registered backends. DESIGN.md
+now contains a full backend feature comparison matrix covering platform
+availability, GPU binding status, shader languages, and `DeviceCapabilities`
+fields. CI expanded with `cross-platform` job testing on macOS and Windows.
 
 ---
 

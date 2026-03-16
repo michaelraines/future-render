@@ -149,6 +149,56 @@ FUTURE_RENDER_BACKEND=opengl|webgl|vulkan|metal|webgpu|dx12|soft|auto
 The `backend.Create(name)` function looks up the named factory in the registry.
 `backend.Available()` returns all registered backend names.
 
+### Auto-Detection
+
+When `FUTURE_RENDER_BACKEND=auto` (the default), `backend.Resolve` iterates a
+platform-specific preference list and returns the first registered backend:
+
+| Platform | Preference Order |
+|---|---|
+| macOS | Metal → Vulkan → OpenGL → Software |
+| Windows | DirectX 12 → Vulkan → OpenGL → Software |
+| Linux / FreeBSD | Vulkan → OpenGL → Software |
+| Browser (WASM) | WebGPU → WebGL2 → Software |
+| Other | OpenGL → Software |
+
+### Backend Feature Comparison
+
+All backends implement the same 7 interfaces (Device, Texture, Buffer, Shader,
+RenderTarget, Pipeline, CommandEncoder). The table below summarizes platform
+availability, GPU API binding status, and shader language.
+
+| Backend | Platform | GPU Binding | Shader Language | Conformance |
+|---|---|---|---|---|
+| Software | All | N/A (CPU) | N/A | 10/10 |
+| OpenGL 3.3 | Desktop (Linux, Windows, macOS) | purego — production | GLSL 330 core | N/A (GPU) |
+| WebGL2 | Browser (WASM) | Soft-delegating | GLSL ES 3.00 | 10/10 |
+| Vulkan | Linux, Windows, Android | Soft-delegating | SPIR-V (planned) | 10/10 |
+| Metal | macOS, iOS | Soft-delegating | MSL (planned) | 10/10 |
+| WebGPU | Cross-platform, Browser | Soft-delegating | WGSL (planned) | 10/10 |
+| DirectX 12 | Windows | Soft-delegating | HLSL (planned) | 10/10 |
+
+**Capability matrix** (reported by `DeviceCapabilities`):
+
+| Capability | Soft | OpenGL | WebGL2 | Vulkan | Metal | WebGPU | DX12 |
+|---|---|---|---|---|---|---|---|
+| Max Texture Size | 4096 | GPU-dependent | 4096 | GPU-dependent | GPU-dependent | GPU-dependent | GPU-dependent |
+| Render Targets | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Instanced Draw | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Compute Shaders | No | No | No | Yes | Yes | Yes | Yes |
+| MSAA | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Float16 Textures | No | Yes | Yes | Yes | Yes | Yes | Yes |
+
+**Soft-delegating** means the backend currently delegates all rendering to the
+software rasterizer for CI testability. The type structure, API constants, and
+conformance scaffolding are in place — converting to real GPU bindings requires
+replacing the `inner` delegation in each method with actual GPU API calls.
+
+Use `cmd/backends` to list registered backends and query their capabilities:
+```
+go build ./cmd/backends && ./backends
+```
+
 ---
 
 ## Render Pipeline
