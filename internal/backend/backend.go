@@ -35,6 +35,9 @@ type Device interface {
 
 	// Capabilities returns the capabilities of this device.
 	Capabilities() DeviceCapabilities
+
+	// Encoder returns the command encoder for recording rendering commands.
+	Encoder() CommandEncoder
 }
 
 // DeviceConfig holds configuration for device initialization.

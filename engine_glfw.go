@@ -4,16 +4,20 @@ package futurerender
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/michaelraines/future-render/internal/backend"
-	"github.com/michaelraines/future-render/internal/backend/opengl"
 	"github.com/michaelraines/future-render/internal/batch"
 	"github.com/michaelraines/future-render/internal/input"
 	"github.com/michaelraines/future-render/internal/pipeline"
 	"github.com/michaelraines/future-render/internal/platform"
 	glfwplatform "github.com/michaelraines/future-render/internal/platform/glfw"
 	fmath "github.com/michaelraines/future-render/math"
+
+	// Register backends so they are available for selection.
+	_ "github.com/michaelraines/future-render/internal/backend/opengl"
+	_ "github.com/michaelraines/future-render/internal/backend/soft"
 )
 
 const (
@@ -237,8 +241,15 @@ func (e *engine) run() error {
 	}
 	defer win.Destroy()
 
-	// Initialize OpenGL backend.
-	dev := opengl.New()
+	// Select rendering backend via FUTURE_RENDER_BACKEND env var or auto-detect.
+	// On desktop (GLFW) builds, prefer OpenGL, then fall back to software.
+	preferred := []string{"opengl", "soft"}
+	dev, resolved, err := backend.Resolve(backendName(), preferred)
+	if err != nil {
+		return fmt.Errorf("backend selection: %w", err)
+	}
+	resolvedBackend.Store(resolved)
+
 	fbW, fbH := win.FramebufferSize()
 	if err := dev.Init(backend.DeviceConfig{
 		Width:  fbW,

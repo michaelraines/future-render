@@ -257,6 +257,32 @@ func TestBackendEnvVar(t *testing.T) {
 	require.Equal(t, "opengl", Backend())
 }
 
+func TestBackendReturnsResolvedName(t *testing.T) {
+	old := resolvedBackend.Load()
+	defer resolvedBackend.Store(old)
+
+	resolvedBackend.Store("soft")
+	require.Equal(t, "soft", Backend())
+}
+
+func TestBackendResolvedTakesPrecedence(t *testing.T) {
+	old := resolvedBackend.Load()
+	defer resolvedBackend.Store(old)
+
+	t.Setenv("FUTURE_RENDER_BACKEND", "vulkan")
+	resolvedBackend.Store("opengl")
+	require.Equal(t, "opengl", Backend())
+}
+
+func TestSyncString(t *testing.T) {
+	var s syncString
+	require.Equal(t, "", s.Load())
+	s.Store("hello")
+	require.Equal(t, "hello", s.Load())
+	s.Store("world")
+	require.Equal(t, "world", s.Load())
+}
+
 func TestSetScreenClearedEveryFrame(t *testing.T) {
 	defer SetScreenClearedEveryFrame(true)
 

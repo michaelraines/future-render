@@ -22,6 +22,7 @@ package futurerender
 import (
 	"errors"
 	"os"
+	"sync"
 	"sync/atomic"
 )
 
@@ -147,11 +148,14 @@ const (
 )
 
 // Backend returns the current rendering backend name.
-// This is determined by the FUTURE_RENDER_BACKEND environment variable
-// or defaults to "auto" (selects the best available backend).
-// Supported values: "auto", "opengl", "vulkan", "metal", "webgl",
-// "webgpu", "dx12", "soft".
+// Before the engine is running, this returns the value of the
+// FUTURE_RENDER_BACKEND environment variable (or "auto").
+// After the engine starts, it returns the actual resolved backend name
+// (e.g. "opengl", "soft").
 func Backend() string {
+	if v := resolvedBackend.Load(); v != "" {
+		return v
+	}
 	return backendName()
 }
 
@@ -162,6 +166,10 @@ func backendName() string {
 	}
 	return "auto"
 }
+
+// resolvedBackend stores the name of the backend that was actually selected
+// at engine startup. Empty until the engine resolves a backend.
+var resolvedBackend syncString
 
 // DeviceScaleFactor returns the device pixel ratio.
 func DeviceScaleFactor() float64 {
@@ -204,6 +212,24 @@ func getEngine() *engine { return globalEnginePtr.Load() }
 
 // setEngine stores the engine atomically.
 func setEngine(e *engine) { globalEnginePtr.Store(e) }
+
+// syncString is a simple thread-safe string value.
+type syncString struct {
+	mu  sync.RWMutex
+	val string
+}
+
+func (s *syncString) Store(v string) {
+	s.mu.Lock()
+	s.val = v
+	s.mu.Unlock()
+}
+
+func (s *syncString) Load() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.val
+}
 
 func init() {
 	maxTPS.Store(60)
