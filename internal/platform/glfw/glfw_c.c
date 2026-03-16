@@ -14,6 +14,7 @@
 #include "cglfw/x11_init.c"
 #include "cglfw/x11_monitor.c"
 #include "cglfw/x11_window.c"
+#include "cglfw/xkb_unicode.c"
 
 // GL contexts
 #include "cglfw/glx_context.c"
