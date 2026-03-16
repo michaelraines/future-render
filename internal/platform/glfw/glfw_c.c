@@ -30,8 +30,5 @@
 // Linux joystick
 #include "cglfw/linux_joystick.c"
 
-// Null platform (required by GLFW platform abstraction)
-#include "cglfw/null_init.c"
-#include "cglfw/null_monitor.c"
-#include "cglfw/null_window.c"
-#include "cglfw/null_joystick.c"
+// Null platform is compiled in glfw_null.c (separate translation unit)
+// to avoid static function name collisions with x11_window.c.
