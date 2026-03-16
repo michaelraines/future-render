@@ -2,34 +2,38 @@
 //
 // The decoder wraps github.com/hajimehoshi/go-mp3 and produces signed
 // 16-bit little-endian stereo PCM data suitable for audio.Context.NewPlayer.
+//
+// When the source implements io.Seeker, Decode streams directly from the
+// underlying go-mp3 Decoder without buffering the entire file in memory.
 package mp3
 
 import (
 	"bytes"
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
 	gomp3 "github.com/hajimehoshi/go-mp3"
+
+	"github.com/michaelraines/future-render/audio/internal/pcm"
 )
 
 // Stream is a decoded MP3 audio stream. It provides signed 16-bit
 // LE stereo PCM data.
 type Stream struct {
-	data       *bytes.Reader
-	raw        []byte
+	reader     io.ReadSeeker
 	sampleRate int
 	length     int64
 }
 
 // Read implements io.Reader.
 func (s *Stream) Read(p []byte) (int, error) {
-	return s.data.Read(p)
+	return s.reader.Read(p)
 }
 
 // Seek implements io.Seeker.
 func (s *Stream) Seek(offset int64, whence int) (int64, error) {
-	return s.data.Seek(offset, whence)
+	return s.reader.Seek(offset, whence)
 }
 
 // Length returns the total length of decoded audio data in bytes.
@@ -44,6 +48,10 @@ func (s *Stream) SampleRate() int {
 
 // Decode reads an MP3 file from src and returns a Stream of stereo
 // 16-bit signed LE PCM data at the file's native sample rate.
+//
+// If src implements io.Seeker, the returned Stream reads directly from the
+// go-mp3 Decoder on the fly, avoiding buffering the full decoded audio in
+// memory. Otherwise, the entire decoded output is buffered.
 func Decode(src io.Reader) (*Stream, error) {
 	decoder, err := gomp3.NewDecoder(src)
 	if err != nil {
@@ -52,16 +60,26 @@ func Decode(src io.Reader) (*Stream, error) {
 
 	sampleRate := decoder.SampleRate()
 
-	pcm, err := readAll(decoder)
+	// If the source is seekable, the decoder supports Seek and Length.
+	// Stream directly without buffering.
+	if decoder.Length() >= 0 {
+		return &Stream{
+			reader:     decoder,
+			sampleRate: sampleRate,
+			length:     decoder.Length(),
+		}, nil
+	}
+
+	// Non-seekable source: buffer everything for seeking support.
+	data, err := readAll(decoder)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Stream{
-		data:       bytes.NewReader(pcm),
-		raw:        pcm,
+		reader:     bytes.NewReader(data),
 		sampleRate: sampleRate,
-		length:     int64(len(pcm)),
+		length:     int64(len(data)),
 	}, nil
 }
 
@@ -74,7 +92,7 @@ func readAll(r io.Reader) ([]byte, error) {
 		if n > 0 {
 			all = append(all, buf[:n]...)
 		}
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 		if readErr != nil {
@@ -94,51 +112,17 @@ func DecodeWithSampleRate(sampleRate int, src io.Reader) (*Stream, error) {
 	if s.sampleRate == sampleRate {
 		return s, nil
 	}
-	resampled := resample(s.raw, s.sampleRate, sampleRate)
+
+	// Resampling requires the full PCM data in memory.
+	data, err := io.ReadAll(s.reader)
+	if err != nil {
+		return nil, fmt.Errorf("mp3: read for resample: %w", err)
+	}
+
+	resampled := pcm.Resample(data, s.sampleRate, sampleRate)
 	return &Stream{
-		data:       bytes.NewReader(resampled),
-		raw:        resampled,
+		reader:     bytes.NewReader(resampled),
 		sampleRate: sampleRate,
 		length:     int64(len(resampled)),
 	}, nil
-}
-
-// resample performs linear interpolation resampling from srcRate to dstRate.
-// Input and output are stereo 16-bit signed LE PCM.
-func resample(data []byte, srcRate, dstRate int) []byte {
-	srcFrames := len(data) / 4
-	if srcFrames < 2 {
-		return data
-	}
-
-	ratio := float64(srcRate) / float64(dstRate)
-	dstFrames := int(float64(srcFrames) / ratio)
-	out := make([]byte, dstFrames*4)
-
-	for i := 0; i < dstFrames; i++ {
-		srcPos := float64(i) * ratio
-		srcIdx := int(srcPos)
-		frac := srcPos - float64(srcIdx)
-
-		if srcIdx >= srcFrames-1 {
-			srcIdx = srcFrames - 2
-			frac = 1.0
-		}
-		if srcIdx < 0 {
-			srcIdx = 0
-			frac = 0
-		}
-
-		l0 := int16(binary.LittleEndian.Uint16(data[srcIdx*4:]))
-		l1 := int16(binary.LittleEndian.Uint16(data[(srcIdx+1)*4:]))
-		left := int16(float64(l0) + frac*(float64(l1)-float64(l0)))
-
-		r0 := int16(binary.LittleEndian.Uint16(data[srcIdx*4+2:]))
-		r1 := int16(binary.LittleEndian.Uint16(data[(srcIdx+1)*4+2:]))
-		right := int16(float64(r0) + frac*(float64(r1)-float64(r0)))
-
-		binary.LittleEndian.PutUint16(out[i*4:], uint16(left))
-		binary.LittleEndian.PutUint16(out[i*4+2:], uint16(right))
-	}
-	return out
 }

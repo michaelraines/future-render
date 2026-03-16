@@ -2,20 +2,18 @@ package mp3
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// --- Stream method tests (construct directly) ---
+// --- Stream method tests (construct directly via bytes.Reader) ---
 
 func TestStreamRead(t *testing.T) {
 	data := []byte{1, 2, 3, 4}
 	s := &Stream{
-		data:       bytes.NewReader(data),
-		raw:        data,
+		reader:     bytes.NewReader(data),
 		sampleRate: 44100,
 		length:     4,
 	}
@@ -30,8 +28,7 @@ func TestStreamRead(t *testing.T) {
 func TestStreamReadEOF(t *testing.T) {
 	data := []byte{1, 2}
 	s := &Stream{
-		data:       bytes.NewReader(data),
-		raw:        data,
+		reader:     bytes.NewReader(data),
 		sampleRate: 44100,
 		length:     2,
 	}
@@ -49,8 +46,7 @@ func TestStreamReadEOF(t *testing.T) {
 func TestStreamSeek(t *testing.T) {
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	s := &Stream{
-		data:       bytes.NewReader(data),
-		raw:        data,
+		reader:     bytes.NewReader(data),
 		sampleRate: 48000,
 		length:     8,
 	}
@@ -75,8 +71,7 @@ func TestStreamSeek(t *testing.T) {
 func TestStreamSeekCurrent(t *testing.T) {
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	s := &Stream{
-		data:       bytes.NewReader(data),
-		raw:        data,
+		reader:     bytes.NewReader(data),
 		sampleRate: 44100,
 		length:     8,
 	}
@@ -101,8 +96,7 @@ func TestStreamSeekCurrent(t *testing.T) {
 func TestStreamSeekEnd(t *testing.T) {
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	s := &Stream{
-		data:       bytes.NewReader(data),
-		raw:        data,
+		reader:     bytes.NewReader(data),
 		sampleRate: 44100,
 		length:     8,
 	}
@@ -121,8 +115,7 @@ func TestStreamSeekEnd(t *testing.T) {
 
 func TestStreamLength(t *testing.T) {
 	s := &Stream{
-		data:       bytes.NewReader(make([]byte, 100)),
-		raw:        make([]byte, 100),
+		reader:     bytes.NewReader(make([]byte, 100)),
 		sampleRate: 44100,
 		length:     100,
 	}
@@ -131,8 +124,7 @@ func TestStreamLength(t *testing.T) {
 
 func TestStreamSampleRate(t *testing.T) {
 	s := &Stream{
-		data:       bytes.NewReader(nil),
-		raw:        nil,
+		reader:     bytes.NewReader(nil),
 		sampleRate: 22050,
 		length:     0,
 	}
@@ -227,7 +219,8 @@ func buildMP3(frames int) []byte {
 	return buf.Bytes()
 }
 
-func TestDecodeValidMP3(t *testing.T) {
+func TestDecodeValidMP3Seekable(t *testing.T) {
+	// bytes.Reader implements io.Seeker, so this exercises the streaming path.
 	mp3Data := buildMP3(3)
 	s, err := Decode(bytes.NewReader(mp3Data))
 	require.NoError(t, err)
@@ -235,6 +228,25 @@ func TestDecodeValidMP3(t *testing.T) {
 	require.Greater(t, s.Length(), int64(0))
 
 	// Output should be stereo 16-bit LE (4 bytes per frame).
+	require.Equal(t, int64(0), s.Length()%4)
+}
+
+// nonSeekReader wraps an io.Reader to remove Seek capability.
+type nonSeekReader struct {
+	r io.Reader
+}
+
+func (n *nonSeekReader) Read(p []byte) (int, error) {
+	return n.r.Read(p)
+}
+
+func TestDecodeValidMP3NonSeekable(t *testing.T) {
+	// Non-seekable source exercises the buffered path.
+	mp3Data := buildMP3(3)
+	s, err := Decode(&nonSeekReader{r: bytes.NewReader(mp3Data)})
+	require.NoError(t, err)
+	require.Equal(t, 44100, s.SampleRate())
+	require.Greater(t, s.Length(), int64(0))
 	require.Equal(t, int64(0), s.Length()%4)
 }
 
@@ -275,50 +287,4 @@ func TestDecodeStreamSeek(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 16, n)
 	require.Equal(t, buf, buf2)
-}
-
-// --- Resample tests ---
-
-func TestResampleIdentity(t *testing.T) {
-	data := make([]byte, 8)
-	binary.LittleEndian.PutUint16(data[0:], 1000)
-	binary.LittleEndian.PutUint16(data[2:], 2000)
-	binary.LittleEndian.PutUint16(data[4:], 3000)
-	binary.LittleEndian.PutUint16(data[6:], 4000)
-
-	result := resample(data, 44100, 44100)
-	require.Equal(t, len(data), len(result))
-}
-
-func TestResampleTooShort(t *testing.T) {
-	data := make([]byte, 4) // 1 frame, need at least 2
-	result := resample(data, 44100, 48000)
-	require.Equal(t, data, result)
-}
-
-func TestResampleDownsample(t *testing.T) {
-	// 100 stereo frames at 44100, resample to 22050 (halve).
-	data := make([]byte, 100*4)
-	for i := 0; i < 100; i++ {
-		binary.LittleEndian.PutUint16(data[i*4:], uint16(i*100))
-		binary.LittleEndian.PutUint16(data[i*4+2:], uint16(i*100))
-	}
-	result := resample(data, 44100, 22050)
-	require.Greater(t, len(result), 0)
-	// Should be roughly half the frames.
-	resultFrames := len(result) / 4
-	require.InDelta(t, 50, resultFrames, 5)
-}
-
-func TestResampleUpsample(t *testing.T) {
-	// 100 stereo frames at 22050, resample to 44100 (double).
-	data := make([]byte, 100*4)
-	for i := 0; i < 100; i++ {
-		binary.LittleEndian.PutUint16(data[i*4:], uint16(i*100))
-		binary.LittleEndian.PutUint16(data[i*4+2:], uint16(i*100))
-	}
-	result := resample(data, 22050, 44100)
-	require.Greater(t, len(result), 0)
-	resultFrames := len(result) / 4
-	require.InDelta(t, 200, resultFrames, 5)
 }
