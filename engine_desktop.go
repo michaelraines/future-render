@@ -5,7 +5,6 @@ package futurerender
 import (
 	"errors"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -450,15 +449,11 @@ func (e *engine) deviceScaleFactor() float64 {
 
 // preferredBackends returns the platform-specific preferred backend order.
 // The first registered backend in the list wins during auto-detection.
+//
+// OpenGL is currently the only backend with real GPU bindings. The other
+// backends (metal, vulkan, dx12, webgpu) delegate to the software rasterizer
+// and cannot present to an OpenGL/GLFW window. OpenGL must come first until
+// those backends gain native GPU implementations.
 func preferredBackends() []string {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"metal", "vulkan", "opengl", "soft"}
-	case "windows":
-		return []string{"dx12", "vulkan", "opengl", "soft"}
-	case "linux", "freebsd":
-		return []string{"vulkan", "opengl", "soft"}
-	default:
-		return []string{"opengl", "soft"}
-	}
+	return []string{"opengl", "soft"}
 }
