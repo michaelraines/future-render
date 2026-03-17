@@ -64,6 +64,14 @@ func mtlBlendConfig(mode backend.BlendMode) (enabled bool, srcRGB, dstRGB, srcAl
 		return true,
 			mtl.BlendFactorSourceAlpha, mtl.BlendFactorOne,
 			mtl.BlendFactorOne, mtl.BlendFactorOne
+	case backend.BlendMultiplicative:
+		return true,
+			mtl.BlendFactorDestinationColor, mtl.BlendFactorZero,
+			mtl.BlendFactorDestinationAlpha, mtl.BlendFactorZero
+	case backend.BlendPremultiplied:
+		return true,
+			mtl.BlendFactorOne, mtl.BlendFactorOneMinusSourceAlpha,
+			mtl.BlendFactorOne, mtl.BlendFactorOneMinusSourceAlpha
 	default:
 		return false, 0, 0, 0, 0
 	}

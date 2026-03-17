@@ -3,6 +3,7 @@
 package metal
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -61,6 +62,7 @@ func (e *Encoder) BeginRenderPass(desc backend.RenderPassDescriptor) {
 			Alpha: float64(desc.ClearColor[3]),
 		}
 		msgSend(ca0, sel("setClearColor:"), *(*uintptr)(unsafe.Pointer(&clearColor)))
+		runtime.KeepAlive(clearColor)
 	}
 
 	e.renderEncoder = mtl.CommandBufferRenderCommandEncoder(e.cmdBuffer, rpDesc)

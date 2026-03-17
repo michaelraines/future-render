@@ -3,6 +3,7 @@
 package vulkan
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -58,6 +59,7 @@ func (p *Pipeline) createVkPipeline(renderPass vk.RenderPass) error {
 		PBindings:    uintptr(unsafe.Pointer(&binding)),
 	}
 	dsl, err := vk.CreateDescriptorSetLayout(p.dev.device, &dslCI)
+	runtime.KeepAlive(binding)
 	if err != nil {
 		return err
 	}
@@ -188,6 +190,18 @@ func (p *Pipeline) createVkPipeline(renderPass vk.RenderPass) error {
 	}
 
 	pip, err := vk.CreateGraphicsPipeline(p.dev.device, uintptr(unsafe.Pointer(&ci)))
+	runtime.KeepAlive(vertexInput)
+	runtime.KeepAlive(inputAssembly)
+	runtime.KeepAlive(viewportState)
+	runtime.KeepAlive(rasterization)
+	runtime.KeepAlive(multisample)
+	runtime.KeepAlive(depthStencil)
+	runtime.KeepAlive(colorBlend)
+	runtime.KeepAlive(dynamicState)
+	runtime.KeepAlive(bindingDesc)
+	runtime.KeepAlive(attrDescs)
+	runtime.KeepAlive(colorBlendAttachment)
+	runtime.KeepAlive(dynamicStates)
 	if err != nil {
 		// Pipeline creation may fail without SPIR-V shaders — this is expected
 		// until runtime shader compilation is implemented.

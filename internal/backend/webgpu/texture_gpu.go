@@ -3,6 +3,7 @@
 package webgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -45,6 +46,7 @@ func (t *Texture) Upload(data []byte, mipLevel int) {
 	}
 	wgpu.QueueWriteTexture(t.dev.queue, &dst,
 		unsafe.Pointer(&data[0]), uint64(len(data)), &layout, &size)
+	runtime.KeepAlive(data)
 }
 
 // UploadRegion uploads a sub-region of texture data.
@@ -71,6 +73,7 @@ func (t *Texture) UploadRegion(data []byte, x, y, w, h, mipLevel int) {
 	}
 	wgpu.QueueWriteTexture(t.dev.queue, &dst,
 		unsafe.Pointer(&data[0]), uint64(len(data)), &layout, &size)
+	runtime.KeepAlive(data)
 }
 
 // ReadPixels reads texture data back to CPU via copy-to-buffer + map.

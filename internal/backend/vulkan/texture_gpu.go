@@ -178,12 +178,12 @@ func (t *Texture) ReadPixels(dst []byte) {
 		return
 	}
 
-	// Transition image to transfer src.
+	// Transition image to transfer src. After Upload, layout is ShaderReadOnlyOptimal.
 	barriers := []vk.ImageMemoryBarrier{{
 		SType:               vk.StructureTypeImageMemoryBarrier,
-		SrcAccessMask:       vk.AccessColorAttachmentWrite,
+		SrcAccessMask:       vk.AccessShaderRead,
 		DstAccessMask:       vk.AccessTransferRead,
-		OldLayout:           vk.ImageLayoutColorAttachmentOptimal,
+		OldLayout:           vk.ImageLayoutShaderReadOnlyOptimal,
 		NewLayout:           vk.ImageLayoutTransferSrcOptimal,
 		SrcQueueFamilyIndex: vk.QueueFamilyIgnored,
 		DstQueueFamilyIndex: vk.QueueFamilyIgnored,
@@ -192,7 +192,7 @@ func (t *Texture) ReadPixels(dst []byte) {
 		SubresLevelCount:    1,
 		SubresLayerCount:    1,
 	}}
-	vk.CmdPipelineBarrier(cmd, vk.PipelineStageColorAttachmentOutput, vk.PipelineStageTransfer, barriers)
+	vk.CmdPipelineBarrier(cmd, vk.PipelineStageFragmentShader, vk.PipelineStageTransfer, barriers)
 
 	// Copy image to staging buffer.
 	region := vk.BufferImageCopy{
@@ -204,12 +204,12 @@ func (t *Texture) ReadPixels(dst []byte) {
 	}
 	vk.CmdCopyImageToBuffer(cmd, t.image, vk.ImageLayoutTransferSrcOptimal, t.dev.stagingBuffer, region)
 
-	// Transition back.
+	// Transition back to ShaderReadOnlyOptimal.
 	barriers[0].SrcAccessMask = vk.AccessTransferRead
-	barriers[0].DstAccessMask = vk.AccessColorAttachmentWrite
+	barriers[0].DstAccessMask = vk.AccessShaderRead
 	barriers[0].OldLayout = vk.ImageLayoutTransferSrcOptimal
-	barriers[0].NewLayout = vk.ImageLayoutColorAttachmentOptimal
-	vk.CmdPipelineBarrier(cmd, vk.PipelineStageTransfer, vk.PipelineStageColorAttachmentOutput, barriers)
+	barriers[0].NewLayout = vk.ImageLayoutShaderReadOnlyOptimal
+	vk.CmdPipelineBarrier(cmd, vk.PipelineStageTransfer, vk.PipelineStageFragmentShader, barriers)
 
 	_ = vk.EndCommandBuffer(cmd)
 	submitInfo := vk.SubmitInfo{

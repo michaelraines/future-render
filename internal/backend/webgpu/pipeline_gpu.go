@@ -3,6 +3,7 @@
 package webgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -12,10 +13,9 @@ import (
 // Pipeline implements backend.Pipeline for WebGPU.
 // Stores the descriptor and lazily creates a WGPURenderPipeline.
 type Pipeline struct {
-	dev      *Device
-	desc     backend.PipelineDescriptor
-	handle   wgpu.RenderPipeline
-	bindGrpLayout wgpu.BindGroupLayout
+	dev    *Device
+	desc   backend.PipelineDescriptor
+	handle wgpu.RenderPipeline
 }
 
 // InnerPipeline returns nil for GPU pipelines (no soft delegation).
@@ -113,6 +113,13 @@ func (p *Pipeline) createPipeline() {
 	}
 
 	p.handle = wgpu.DeviceCreateRenderPipelineTyped(p.dev.device, &desc)
+	runtime.KeepAlive(vertexEntry)
+	runtime.KeepAlive(fragmentEntry)
+	runtime.KeepAlive(attrs)
+	runtime.KeepAlive(vbl)
+	runtime.KeepAlive(blend)
+	runtime.KeepAlive(target)
+	runtime.KeepAlive(fragment)
 }
 
 // wgpuBlendState returns blend configuration for a backend blend mode.
@@ -142,6 +149,32 @@ func wgpuBlendState(mode backend.BlendMode) (enabled bool, state wgpu.BlendState
 				Operation: wgpu.BlendOperationAdd,
 				SrcFactor: wgpu.BlendFactorOne,
 				DstFactor: wgpu.BlendFactorOne,
+			},
+		}
+	case backend.BlendMultiplicative:
+		return true, wgpu.BlendState{
+			Color: wgpu.BlendComponent{
+				Operation: wgpu.BlendOperationAdd,
+				SrcFactor: wgpu.BlendFactorDst,
+				DstFactor: wgpu.BlendFactorZero,
+			},
+			Alpha: wgpu.BlendComponent{
+				Operation: wgpu.BlendOperationAdd,
+				SrcFactor: wgpu.BlendFactorDstAlpha,
+				DstFactor: wgpu.BlendFactorZero,
+			},
+		}
+	case backend.BlendPremultiplied:
+		return true, wgpu.BlendState{
+			Color: wgpu.BlendComponent{
+				Operation: wgpu.BlendOperationAdd,
+				SrcFactor: wgpu.BlendFactorOne,
+				DstFactor: wgpu.BlendFactorOneMinusSrcAlpha,
+			},
+			Alpha: wgpu.BlendComponent{
+				Operation: wgpu.BlendOperationAdd,
+				SrcFactor: wgpu.BlendFactorOne,
+				DstFactor: wgpu.BlendFactorOneMinusSrcAlpha,
 			},
 		}
 	default:
@@ -212,9 +245,5 @@ func (p *Pipeline) Dispose() {
 	if p.handle != 0 {
 		wgpu.RenderPipelineRelease(p.handle)
 		p.handle = 0
-	}
-	if p.bindGrpLayout != 0 {
-		wgpu.BindGroupLayoutRelease(p.bindGrpLayout)
-		p.bindGrpLayout = 0
 	}
 }

@@ -3,6 +3,7 @@
 package vulkan
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -57,6 +58,7 @@ func (e *Encoder) BeginRenderPass(desc backend.RenderPassDescriptor) {
 		PClearValues:    uintptr(unsafe.Pointer(&clearColor)),
 	}
 	vk.CmdBeginRenderPass(e.cmd, &rpBegin)
+	runtime.KeepAlive(clearColor)
 	e.inRenderPass = true
 	e.colorWriteOn = true
 }
@@ -127,6 +129,7 @@ func (e *Encoder) SetTexture(tex backend.Texture, slot int) {
 			PPoolSizes:    uintptr(unsafe.Pointer(&poolSize)),
 		}
 		pool, err := vk.CreateDescriptorPool(e.dev.device, &poolCI)
+		runtime.KeepAlive(poolSize)
 		if err != nil {
 			return
 		}
@@ -164,6 +167,7 @@ func (e *Encoder) SetTexture(tex backend.Texture, slot int) {
 		PImageInfo:      uintptr(unsafe.Pointer(&imgInfo)),
 	}
 	vk.UpdateDescriptorSets(e.dev.device, []vk.WriteDescriptorSet{write})
+	runtime.KeepAlive(imgInfo)
 
 	// Bind the descriptor set.
 	if e.currentPipeline.pipelineLayout != 0 {

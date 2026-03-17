@@ -104,6 +104,8 @@ type BlendFactor uint32
 const (
 	BlendFactorZero             BlendFactor = 0
 	BlendFactorOne              BlendFactor = 1
+	BlendFactorDst              BlendFactor = 4
+	BlendFactorDstAlpha         BlendFactor = 8
 	BlendFactorSrcAlpha         BlendFactor = 6
 	BlendFactorOneMinusSrcAlpha BlendFactor = 7
 )
@@ -745,7 +747,10 @@ func DeviceCreateShaderModuleWGSL(dev Device, code string) ShaderModule {
 	desc := ShaderModuleDescriptor{
 		NextInChain: uintptr(unsafe.Pointer(&wgslDesc)),
 	}
-	return fnDeviceCreateShaderModule(dev, uintptr(unsafe.Pointer(&desc)))
+	ret := fnDeviceCreateShaderModule(dev, uintptr(unsafe.Pointer(&desc)))
+	runtime.KeepAlive(codeBytes)
+	runtime.KeepAlive(wgslDesc)
+	return ret
 }
 
 // DeviceCreateRenderPipelineTyped creates a render pipeline from a typed descriptor.

@@ -3,6 +3,7 @@
 package webgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/michaelraines/future-render/internal/backend"
@@ -59,6 +60,7 @@ func (e *Encoder) BeginRenderPass(desc backend.RenderPassDescriptor) {
 	}
 
 	e.passEncoder = wgpu.CommandEncoderBeginRenderPass(e.cmdEncoder, &rpDesc)
+	runtime.KeepAlive(colorAttachment)
 	e.inRenderPass = true
 
 	// Set default viewport.
@@ -164,6 +166,7 @@ func (e *Encoder) SetTexture(tex backend.Texture, slot int) {
 		Entries:    uintptr(unsafe.Pointer(&entries[0])),
 	}
 	bgl := wgpu.DeviceCreateBindGroupLayout(e.dev.device, &bglDesc)
+	runtime.KeepAlive(entries)
 	if bgl == 0 {
 		return
 	}
@@ -185,6 +188,7 @@ func (e *Encoder) SetTexture(tex backend.Texture, slot int) {
 		Entries:    uintptr(unsafe.Pointer(&bgEntries[0])),
 	}
 	bg := wgpu.DeviceCreateBindGroup(e.dev.device, &bgDesc)
+	runtime.KeepAlive(bgEntries)
 	if bg != 0 {
 		wgpu.RenderPassSetBindGroup(e.passEncoder, uint32(slot), bg)
 		wgpu.BindGroupRelease(bg)
